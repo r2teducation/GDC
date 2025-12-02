@@ -66,10 +66,10 @@ class _AutoCareHomeState extends State<AutoCareHome> {
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
                       'dashboard' => const DashboardWidget(),
-                      'sub4_1' => const Center(
-                          child: Text('Development in Progress')),
-                      'sub4_2' => const Center(
-                          child: Text('Development in Progress')),
+                      'sub4_1' =>
+                        const Center(child: Text('Development in Progress')),
+                      'sub4_2' =>
+                        const Center(child: Text('Development in Progress')),
                       _ => const DashboardWidget(),
                     },
                   ),
@@ -194,20 +194,37 @@ class _Sidebar extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
 
-                  // 👇 NEW: Tab 4 with two sub tabs
+                  // 👇 NEW: Patient with two sub tabs
+                  // 👇 Patient with 6 sub tabs
                   _Collapsible(
                     icon: Icons.settings_outlined,
-                    label: 'Tab 4',
+                    label: 'Patient',
                     open: tab4Open,
                     onToggle: onToggle4,
                     children: [
                       _SideSubItem(
-                        label: 'Sub Tab 4.1',
+                        label: 'Profile', // Enrollment → Profile
                         onTap: onOpenSub4_1,
                       ),
                       _SideSubItem(
-                        label: 'Sub Tab 4.2',
+                        label: 'Visits', // Details → Visits
                         onTap: onOpenSub4_2,
+                      ),
+                      _SideSubItem(
+                        label: 'Medical',
+                        onTap: () {}, // TODO: add actual route
+                      ),
+                      _SideSubItem(
+                        label: 'Dental',
+                        onTap: () {}, // TODO: add actual route
+                      ),
+                      _SideSubItem(
+                        label: 'Examination',
+                        onTap: () {}, // TODO: add actual route
+                      ),
+                      _SideSubItem(
+                        label: 'Records',
+                        onTap: () {}, // TODO: add actual route
                       ),
                     ],
                   ),
@@ -307,7 +324,7 @@ class _Collapsible extends StatelessWidget {
     required this.open,
     this.onToggle,
     required this.children,
-    this.trailingBadge,        // 👈 make sure this line exists
+    this.trailingBadge, // 👈 make sure this line exists
   });
 
   @override
