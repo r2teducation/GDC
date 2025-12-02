@@ -185,7 +185,6 @@ class _KpiCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.actionText,
-    super.key,
   });
 
   @override

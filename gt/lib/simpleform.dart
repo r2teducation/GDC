@@ -222,7 +222,7 @@ class _SimpleFormWidgetState extends State<SimpleFormWidget> {
 
                     const _FieldLabel('Gender *'),
                     DropdownButtonFormField<String>(
-                      value: _gender,
+                      initialValue: _gender,
                       items: const [
                         DropdownMenuItem(value: 'Male', child: Text('Male')),
                         DropdownMenuItem(

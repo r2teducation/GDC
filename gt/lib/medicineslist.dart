@@ -389,7 +389,6 @@ class _Hdr extends StatelessWidget {
     this.active = false,
     this.ascending = true,
     this.onTap,
-    super.key,
   });
 
   @override
@@ -440,7 +439,6 @@ class _Cell extends StatelessWidget {
     this.flex = 1,
     this.right = false,
     this.weight,
-    super.key,
   });
 
   @override

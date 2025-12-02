@@ -127,10 +127,10 @@ class _MultiLevelFormWidgetState extends State<MultiLevelFormWidget> {
                     const SizedBox(height: 24),
                     _controls(),
                     const SizedBox(height: 24),
-                    Center(
+                    const Center(
                       child: Wrap(
                         crossAxisAlignment: WrapCrossAlignment.center,
-                        children: const [
+                        children: [
                           Text(
                             "Stuck on the form? ",
                             style: TextStyle(color: Color(0xFF6B7280)),
@@ -235,7 +235,7 @@ class _MultiLevelFormWidgetState extends State<MultiLevelFormWidget> {
               _LabeledField(
                 label: 'Gender *',
                 child: DropdownButtonFormField<String>(
-                  value: _gender,
+                  initialValue: _gender,
                   items: const [
                     DropdownMenuItem(value: 'Male', child: Text('Male')),
                     DropdownMenuItem(value: 'Female', child: Text('Female')),
@@ -254,8 +254,8 @@ class _MultiLevelFormWidgetState extends State<MultiLevelFormWidget> {
       case 1:
         return Form(
           key: _formKeys[1],
-          child: Column(
-            children: const [
+          child: const Column(
+            children: [
               _LabeledField(
                 label: 'From *',
                 child: TextField(
@@ -284,8 +284,8 @@ class _MultiLevelFormWidgetState extends State<MultiLevelFormWidget> {
       case 2:
         return Form(
           key: _formKeys[2],
-          child: Column(
-            children: const [
+          child: const Column(
+            children: [
               _LabeledField(
                 label: 'Plan *',
                 child: TextField(
@@ -306,8 +306,8 @@ class _MultiLevelFormWidgetState extends State<MultiLevelFormWidget> {
       default:
         return Form(
           key: _formKeys[3],
-          child: Column(
-            children: const [
+          child: const Column(
+            children: [
               _LabeledField(
                 label: 'Notes',
                 child: TextField(maxLines: 3),
@@ -375,7 +375,7 @@ class _StepTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: _barGray)),
       ),

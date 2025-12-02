@@ -256,7 +256,6 @@ class _SideItem extends StatelessWidget {
   final Color activeColor;
   final VoidCallback? onTap;
   const _SideItem({
-    super.key,
     required this.icon,
     required this.label,
     this.active = false,
@@ -310,7 +309,6 @@ class _Collapsible extends StatelessWidget {
   final List<Widget> children;
   final Widget? trailingBadge;
   const _Collapsible({
-    super.key,
     required this.icon,
     required this.label,
     required this.open,
@@ -417,9 +415,9 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     String greeting;
-    if (now.hour < 12)
+    if (now.hour < 12) {
       greeting = 'Good Morning';
-    else if (now.hour < 17)
+    } else if (now.hour < 17)
       greeting = 'Good Afternoon';
     else
       greeting = 'Good Evening';
@@ -431,11 +429,11 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           // search
-          Expanded(
+          const Expanded(
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search for anything here..',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
                 filled: true,
                 fillColor: Colors.white,
               ),
@@ -481,7 +479,7 @@ class _TopBar extends StatelessWidget {
       'November',
       'December'
     ];
-    final two = (int n) => n < 10 ? '0$n' : '$n';
+    String two(int n) => n < 10 ? '0$n' : '$n';
     return '${d.day} ${months[d.month - 1]} ${d.year}  ·  ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
 }
@@ -490,11 +488,11 @@ class _ContentArea extends StatelessWidget {
   const _ContentArea();
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text('Dashboard',
               style: TextStyle(
                   fontSize: 28,

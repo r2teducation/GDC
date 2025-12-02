@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
-import 'package:gt/medicineslist.dart';
-import 'package:gt/multilevelform.dart';
-import 'package:gt/simpleform.dart'; // 👈 your SimpleFormWidget
 
 class AutoCareApp extends StatelessWidget {
   const AutoCareApp({super.key});
@@ -37,8 +34,7 @@ class AutoCareHome extends StatefulWidget {
 
 class _AutoCareHomeState extends State<AutoCareHome> {
   int selected = 0;
-  bool tab2Open = true;
-  bool tab3Open = true;
+  bool tab4Open = true; // 👈 only Tab 4 is collapsible now
 
   String? _route; // null -> dashboard (we'll treat default as dashboard)
 
@@ -49,22 +45,16 @@ class _AutoCareHomeState extends State<AutoCareHome> {
         children: [
           _Sidebar(
             selected: selected,
-            tab2Open: tab2Open,
-            tab3Open: tab3Open,
+            tab4Open: tab4Open,
             onSelect: (i) {
               setState(() {
                 selected = i;
-                // When Dashboard is clicked, go to dashboard route.
-                // For other top-level items we reset to section default.
                 _route = (i == 0) ? 'dashboard' : null;
               });
             },
-            onToggle2: () => setState(() => tab2Open = !tab2Open),
-            onToggle3: () => setState(() => tab3Open = !tab3Open),
-            onOpenSub2_1: () => setState(() => _route = 'sub2_1_form'),
-            onOpenSub2_2: () =>
-                setState(() => _route = 'sub2_2_simple_form'),
-            onOpenSub3_1: () => setState(() => _route = 'sub3_1_meds'),
+            onToggle4: () => setState(() => tab4Open = !tab4Open),
+            onOpenSub4_1: () => setState(() => _route = 'sub4_1'),
+            onOpenSub4_2: () => setState(() => _route = 'sub4_2'),
           ),
           Expanded(
             child: Column(
@@ -75,11 +65,11 @@ class _AutoCareHomeState extends State<AutoCareHome> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
-                      'dashboard' => const DashboardWidget(), // 👈 NEW
-                      'sub2_1_form' => const MultiLevelFormWidget(),
-                      'sub2_2_simple_form' => const SimpleFormWidget(),
-                      'sub3_1_meds' => const MedicinesListWidget(),
-                      // default view -> Dashboard
+                      'dashboard' => const DashboardWidget(),
+                      'sub4_1' => const Center(
+                          child: Text('Development in Progress')),
+                      'sub4_2' => const Center(
+                          child: Text('Development in Progress')),
                       _ => const DashboardWidget(),
                     },
                   ),
@@ -96,24 +86,19 @@ class _AutoCareHomeState extends State<AutoCareHome> {
 class _Sidebar extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
-  final bool tab2Open;
-  final bool tab3Open;
-  final VoidCallback onToggle2;
-  final VoidCallback onToggle3;
-  final VoidCallback onOpenSub2_1;
-  final VoidCallback onOpenSub2_2;
-  final VoidCallback onOpenSub3_1;
+
+  final bool tab4Open;
+  final VoidCallback onToggle4;
+  final VoidCallback onOpenSub4_1;
+  final VoidCallback onOpenSub4_2;
 
   const _Sidebar({
     required this.selected,
     required this.onSelect,
-    required this.tab2Open,
-    required this.tab3Open,
-    required this.onToggle2,
-    required this.onToggle3,
-    required this.onOpenSub2_1,
-    required this.onOpenSub2_2,
-    required this.onOpenSub3_1,
+    required this.tab4Open,
+    required this.onToggle4,
+    required this.onOpenSub4_1,
+    required this.onOpenSub4_2,
   });
 
   @override
@@ -143,7 +128,7 @@ class _Sidebar extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'AutoCare',
+                      'Global Dental Clinic',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -174,7 +159,7 @@ class _Sidebar extends StatelessWidget {
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Akshara',
+                      Text('Ramesh',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600)),
@@ -204,37 +189,30 @@ class _Sidebar extends StatelessWidget {
                     icon: Icons.space_dashboard_outlined,
                     label: 'Dashboard',
                     active: selected == 0,
-                    onTap: () => onSelect(0), // sets route to 'dashboard'
+                    onTap: () => onSelect(0),
                     activeColor: active,
                   ),
                   const SizedBox(height: 6),
+
+                  // 👇 NEW: Tab 4 with two sub tabs
                   _Collapsible(
-                    icon: Icons.tune,
-                    label: 'Forms',
-                    open: tab2Open,
-                    onToggle: onToggle2,
+                    icon: Icons.settings_outlined,
+                    label: 'Tab 4',
+                    open: tab4Open,
+                    onToggle: onToggle4,
                     children: [
                       _SideSubItem(
-                          label: 'Multi Step Form', onTap: onOpenSub2_1),
+                        label: 'Sub Tab 4.1',
+                        onTap: onOpenSub4_1,
+                      ),
                       _SideSubItem(
-                          label: 'Simple Form', onTap: onOpenSub2_2),
+                        label: 'Sub Tab 4.2',
+                        onTap: onOpenSub4_2,
+                      ),
                     ],
                   ),
+
                   const SizedBox(height: 6),
-                  _Collapsible(
-                    icon: Icons.group_outlined,
-                    label: 'Data Tables',
-                    open: tab3Open,
-                    onToggle: onToggle3,
-                    trailingBadge: const _Badge('01'),
-                    children: [
-                      _SideSubItem(label: 'Typical Table', onTap: onOpenSub3_1),
-                      const _SideSubItem(label: 'Sub Tab 3.2'),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  const _SideItem(
-                      icon: Icons.settings_outlined, label: 'Tab 4'),
                   const _SideItem(icon: Icons.map_outlined, label: 'Tab 5'),
                   const _SideItem(icon: Icons.help_outline, label: 'Tab 6'),
                   const SizedBox(height: 16),
@@ -270,7 +248,6 @@ class _SideItem extends StatelessWidget {
   final Color activeColor;
   final VoidCallback? onTap;
   const _SideItem({
-    super.key,
     required this.icon,
     required this.label,
     this.active = false,
@@ -322,15 +299,15 @@ class _Collapsible extends StatelessWidget {
   final bool open;
   final VoidCallback? onToggle;
   final List<Widget> children;
-  final Widget? trailingBadge;
+  final Widget? trailingBadge; // 👈 keep it nullable
+
   const _Collapsible({
-    super.key,
     required this.icon,
     required this.label,
     required this.open,
     this.onToggle,
     required this.children,
-    this.trailingBadge,
+    this.trailingBadge,        // 👈 make sure this line exists
   });
 
   @override
@@ -354,12 +331,20 @@ class _Collapsible extends StatelessWidget {
                     Icon(icon, color: Colors.white.withOpacity(.95), size: 20),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: Text(label,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 14))),
-                    if (trailingBadge != null) trailingBadge!,
-                    Icon(open ? Icons.expand_more : Icons.chevron_right,
-                        color: const Color(0xFF9CA3AF), size: 20),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (trailingBadge != null) trailingBadge!, // 👈 safe use
+                    Icon(
+                      open ? Icons.expand_more : Icons.chevron_right,
+                      color: const Color(0xFF9CA3AF),
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
@@ -370,7 +355,7 @@ class _Collapsible extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 52),
             child: Column(children: children),
-          )
+          ),
       ],
     );
   }
@@ -445,9 +430,9 @@ class _TopBar extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
       child: Row(
         children: [
-          Expanded(
+          const Expanded(
             child: TextField(
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search for anything here..',
                 prefixIcon: Icon(Icons.search),
                 filled: true,
@@ -482,8 +467,18 @@ class _TopBar extends StatelessWidget {
 
   static String _fmtDate(DateTime d) {
     const months = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
     ];
     String two(int n) => n < 10 ? '0$n' : '$n';
     return '${d.day} ${months[d.month - 1]} ${d.year}  ·  ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
