@@ -8,13 +8,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: const FirebaseOptions(
-        apiKey: "AIzaSyCRQZmaZDlM7bd00LKFqiXll-_2vRVANWQ",
-        authDomain: "hfapp-b53bb.firebaseapp.com",
-        projectId: "hfapp-b53bb",
-        storageBucket: "hfapp-b53bb.firebasestorage.app",
-        messagingSenderId: "833342328412",
-        appId: "1:833342328412:web:fdb34c56218b18c44d2099",
-        measurementId: "G-X0BES6V8J4"),
+        apiKey: "AIzaSyAPGf92bzIDo0xnLRk92UkZbc3b3SkP66U",
+        authDomain: "globaldentalclinic-a1b4b.firebaseapp.com",
+        projectId: "globaldentalclinic-a1b4b",
+        storageBucket: "globaldentalclinic-a1b4b.firebasestorage.app",
+        messagingSenderId: "18297162424",
+        appId: "1:18297162424:web:59ec6ad8603cd844d8024d",
+        measurementId: "G-NVTS4W0Q3J"),
   );
   runApp(
     ChangeNotifierProvider(

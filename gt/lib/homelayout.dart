@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
+import 'package:gt/patient/profilewidget.dart';
 
 class AutoCareApp extends StatelessWidget {
   const AutoCareApp({super.key});
@@ -34,9 +35,9 @@ class AutoCareHome extends StatefulWidget {
 
 class _AutoCareHomeState extends State<AutoCareHome> {
   int selected = 0;
-  bool tab4Open = true; // 👈 only Tab 4 is collapsible now
+  bool tab4Open = true;
 
-  String? _route; // null -> dashboard (we'll treat default as dashboard)
+  String? _route; // null -> dashboard
 
   @override
   Widget build(BuildContext context) {
@@ -60,14 +61,14 @@ class _AutoCareHomeState extends State<AutoCareHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _TopBar(),
+                const SizedBox(height: 0), // 🔥 Top bar removed completely
+
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
                       'dashboard' => const DashboardWidget(),
-                      'sub4_1' =>
-                        const Center(child: Text('Development in Progress')),
+                      'sub4_1' => const ProfileWidget(mode: ProfileMode.create),
                       'sub4_2' =>
                         const Center(child: Text('Development in Progress')),
                       _ => const DashboardWidget(),
@@ -113,7 +114,7 @@ class _Sidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Brand row
+            // Brand bar
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -141,6 +142,7 @@ class _Sidebar extends StatelessWidget {
                 ],
               ),
             ),
+
             // Profile card
             Container(
               margin: const EdgeInsets.all(16),
@@ -182,6 +184,7 @@ class _Sidebar extends StatelessWidget {
                 ],
               ),
             ),
+
             Expanded(
               child: ListView(
                 children: [
@@ -190,51 +193,38 @@ class _Sidebar extends StatelessWidget {
                     label: 'Dashboard',
                     active: selected == 0,
                     onTap: () => onSelect(0),
-                    activeColor: active,
                   ),
                   const SizedBox(height: 6),
 
-                  // 👇 NEW: Patient with two sub tabs
-                  // 👇 Patient with 6 sub tabs
+                  // PATIENT GROUP
                   _Collapsible(
-                    icon: Icons.settings_outlined,
+                    icon: Icons.people_alt_outlined,
                     label: 'Patient',
                     open: tab4Open,
                     onToggle: onToggle4,
                     children: [
                       _SideSubItem(
-                        label: 'Profile', // Enrollment → Profile
+                        label: 'Profile',
                         onTap: onOpenSub4_1,
                       ),
                       _SideSubItem(
-                        label: 'Visits', // Details → Visits
+                        label: 'Visits',
                         onTap: onOpenSub4_2,
                       ),
-                      _SideSubItem(
-                        label: 'Medical',
-                        onTap: () {}, // TODO: add actual route
-                      ),
-                      _SideSubItem(
-                        label: 'Dental',
-                        onTap: () {}, // TODO: add actual route
-                      ),
-                      _SideSubItem(
-                        label: 'Examination',
-                        onTap: () {}, // TODO: add actual route
-                      ),
-                      _SideSubItem(
-                        label: 'Records',
-                        onTap: () {}, // TODO: add actual route
-                      ),
+                      _SideSubItem(label: 'Medical', onTap: () {}),
+                      _SideSubItem(label: 'Dental', onTap: () {}),
+                      _SideSubItem(label: 'Examination', onTap: () {}),
+                      _SideSubItem(label: 'Records', onTap: () {}),
                     ],
                   ),
 
                   const SizedBox(height: 6),
                   const _SideItem(icon: Icons.map_outlined, label: 'Tab 5'),
                   const _SideItem(icon: Icons.help_outline, label: 'Tab 6'),
+
                   const SizedBox(height: 16),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
                         Text('Powered by Gutta © 2022',
@@ -262,22 +252,22 @@ class _SideItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
-  final Color activeColor;
   final VoidCallback? onTap;
+
   const _SideItem({
     required this.icon,
     required this.label,
     this.active = false,
     this.onTap,
-    this.activeColor = const Color(0xFF14B8A6),
   });
 
   @override
   Widget build(BuildContext context) {
     final bg = active ? const Color(0xFF0D2630) : Colors.transparent;
-    final borderColor = active ? activeColor : Colors.transparent;
+    final borderColor = active ? const Color(0xFF14B8A6) : Colors.transparent;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Material(
         color: bg,
         borderRadius: BorderRadius.circular(10),
@@ -292,12 +282,14 @@ class _SideItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Icon(icon, color: Colors.white.withOpacity(.95), size: 20),
+                Icon(icon, color: Colors.white, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(label,
-                      style:
-                          const TextStyle(color: Colors.white, fontSize: 14)),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      )),
                 ),
                 if (active)
                   const Icon(Icons.check, size: 16, color: Colors.white70),
@@ -316,7 +308,7 @@ class _Collapsible extends StatelessWidget {
   final bool open;
   final VoidCallback? onToggle;
   final List<Widget> children;
-  final Widget? trailingBadge; // 👈 keep it nullable
+  final Widget? trailingBadge;
 
   const _Collapsible({
     required this.icon,
@@ -324,7 +316,7 @@ class _Collapsible extends StatelessWidget {
     required this.open,
     this.onToggle,
     required this.children,
-    this.trailingBadge, // 👈 make sure this line exists
+    this.trailingBadge,
   });
 
   @override
@@ -333,7 +325,7 @@ class _Collapsible extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(10),
@@ -345,7 +337,7 @@ class _Collapsible extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 child: Row(
                   children: [
-                    Icon(icon, color: Colors.white.withOpacity(.95), size: 20),
+                    Icon(icon, color: Colors.white, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -356,7 +348,7 @@ class _Collapsible extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (trailingBadge != null) trailingBadge!, // 👈 safe use
+                    if (trailingBadge != null) trailingBadge!,
                     Icon(
                       open ? Icons.expand_more : Icons.chevron_right,
                       color: const Color(0xFF9CA3AF),
@@ -368,6 +360,7 @@ class _Collapsible extends StatelessWidget {
             ),
           ),
         ),
+
         if (open)
           Padding(
             padding: const EdgeInsets.only(left: 52),
@@ -381,12 +374,16 @@ class _Collapsible extends StatelessWidget {
 class _SideSubItem extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  const _SideSubItem({required this.label, this.onTap});
+
+  const _SideSubItem({
+    required this.label,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12.0, bottom: 8),
+      padding: const EdgeInsets.only(right: 12, bottom: 8),
       child: Material(
         color: const Color(0xFF111827),
         borderRadius: BorderRadius.circular(10),
@@ -398,135 +395,16 @@ class _SideSubItem extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 4),
-                Text(label, style: const TextStyle(color: Color(0xFFE5E7EB))),
+                Text(
+                  label,
+                  style:
+                      const TextStyle(color: Color(0xFFE5E7EB), fontSize: 14),
+                ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String text;
-  const _Badge(this.text);
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      margin: const EdgeInsets.only(right: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEF4444),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(text,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    String greeting;
-    if (now.hour < 12) {
-      greeting = 'Good Morning';
-    } else if (now.hour < 17) {
-      greeting = 'Good Afternoon';
-    } else {
-      greeting = 'Good Evening';
-    }
-
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
-      child: Row(
-        children: [
-          const Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search for anything here..',
-                prefixIcon: Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Row(
-              children: [
-                const _Dot(color: Color(0xFFFFC107)),
-                const SizedBox(width: 8),
-                Text(greeting,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(width: 12),
-                Text(_fmtDate(now),
-                    style: const TextStyle(color: Color(0xFF6B7280))),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  static String _fmtDate(DateTime d) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
-    String two(int n) => n < 10 ? '0$n' : '$n';
-    return '${d.day} ${months[d.month - 1]} ${d.year}  ·  ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
-  }
-}
-
-class _ContentArea extends StatelessWidget {
-  const _ContentArea();
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Dashboard',
-            style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF111827))),
-        SizedBox(height: 6),
-        Text('A quick data overview of the inventory.',
-            style: TextStyle(color: Color(0xFF6B7280), fontSize: 16)),
-        SizedBox(height: 24),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-                color: Color(0xFFE5E7EB),
-                borderRadius: BorderRadius.all(Radius.circular(12))),
-            child: SizedBox.expand(),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -537,8 +415,9 @@ class _Dot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle));
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
   }
 }
