@@ -68,7 +68,7 @@ class _AutoCareHomeState extends State<AutoCareHome> {
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
                       'dashboard' => const DashboardWidget(),
-                      'sub4_1' => const ProfileWidget(mode: ProfileMode.create),
+                      'sub4_1' => const ProfileWidget(),
                       'sub4_2' =>
                         const Center(child: Text('Development in Progress')),
                       _ => const DashboardWidget(),

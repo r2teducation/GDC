@@ -5,14 +5,7 @@ import 'package:flutter/services.dart';
 enum ProfileMode { create, edit }
 
 class ProfileWidget extends StatefulWidget {
-  final ProfileMode mode;
-  final Map<String, dynamic>? initial; // for EDIT mode
-
-  const ProfileWidget({
-    super.key,
-    required this.mode,
-    this.initial,
-  });
+  const ProfileWidget({super.key}); // 👈 no more mode/initial from outside
 
   @override
   State<ProfileWidget> createState() => _ProfileWidgetState();
@@ -29,25 +22,56 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   final _addressCtrl = TextEditingController();
 
   String? _gender; // M / F / O
-  bool _loading = false;
+  bool _loading = false;        // for save / load
+  bool _loadingPatients = true; // for dropdown loading
+
+  ProfileMode _mode = ProfileMode.create; // 👈 internal mode
+  String? _selectedPatientId;            // from Patient Search
 
   final _db = FirebaseFirestore.instance;
+
+  // For dropdown options: patientId + fullName
+  List<_PatientOption> _patientOptions = [];
 
   @override
   void initState() {
     super.initState();
+    _patientIdCtrl.text = 'Auto-generated';
+    _loadPatientsForDropdown();
+  }
 
-    if (widget.mode == ProfileMode.edit && widget.initial != null) {
-      final p = widget.initial!;
-      _patientIdCtrl.text = p['patientId'] ?? '';
-      _firstNameCtrl.text = p['firstName'] ?? '';
-      _lastNameCtrl.text = p['lastName'] ?? '';
-      _gender = _toCode(p['gender']);
-      _ageCtrl.text = p['age']?.toString() ?? '';
-      _mobileCtrl.text = p['mobile'] ?? '';
-      _addressCtrl.text = p['address'] ?? '';
-    } else {
-      _patientIdCtrl.text = 'Auto-generated';
+  // -------------------------------------------------------
+  // LOAD PATIENT LIST FOR DROPDOWN
+  // -------------------------------------------------------
+  Future<void> _loadPatientsForDropdown() async {
+    try {
+      final snap = await _db
+          .collection('patients')
+          .orderBy('patientId')
+          .get();
+
+      final List<_PatientOption> opts = [];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final id = data['patientId'] ?? doc.id;
+        final fullName = (data['fullName'] ??
+                '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
+            .toString()
+            .trim();
+        final label =
+            fullName.isNotEmpty ? '$id  $fullName' : id.toString();
+        opts.add(_PatientOption(id: id, label: label));
+      }
+
+      setState(() {
+        _patientOptions = opts;
+        _loadingPatients = false;
+      });
+    } catch (e) {
+      setState(() => _loadingPatients = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load patients: $e')),
+      );
     }
   }
 
@@ -93,8 +117,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   // FIRESTORE - AUTO GENERATE PATIENT ID
   // -------------------------------------------------------
   Future<String> _generatePatientId() async {
-    final counterRef =
-        _db.collection('counters').doc('patientCounter');
+    final counterRef = _db.collection('counters').doc('patientCounter');
 
     return await _db.runTransaction((tx) async {
       final snap = await tx.get(counterRef);
@@ -161,6 +184,70 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
+  // MODE & FORM HELPERS
+  // -------------------------------------------------------
+  void _clearForm() {
+    _patientIdCtrl.text = 'Auto-generated';
+    _firstNameCtrl.clear();
+    _lastNameCtrl.clear();
+    _ageCtrl.clear();
+    _mobileCtrl.clear();
+    _addressCtrl.clear();
+    _gender = null;
+  }
+
+  Future<void> _loadPatientAndFillForm(String patientId) async {
+    setState(() => _loading = true);
+    try {
+      final doc =
+          await _db.collection('patients').doc(patientId).get();
+      if (!doc.exists) {
+        throw Exception('Patient not found');
+      }
+      final p = doc.data() as Map<String, dynamic>;
+
+      _patientIdCtrl.text = p['patientId'] ?? patientId;
+      _firstNameCtrl.text = p['firstName'] ?? '';
+      _lastNameCtrl.text = p['lastName'] ?? '';
+      _gender = _toCode(p['gender']);
+      _ageCtrl.text = p['age']?.toString() ?? '';
+      _mobileCtrl.text = p['mobile'] ?? '';
+      _addressCtrl.text = p['address'] ?? '';
+
+      setState(() {
+        _mode = ProfileMode.edit;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load patient: $e')),
+      );
+      _clearForm();
+      setState(() {
+        _selectedPatientId = null;
+        _mode = ProfileMode.create;
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _onPatientSelected(String? value) {
+    // value == '' => "New Patient (Create)"
+    if (value == null || value.isEmpty) {
+      setState(() {
+        _selectedPatientId = null;
+        _mode = ProfileMode.create;
+      });
+      _clearForm();
+    } else {
+      setState(() {
+        _selectedPatientId = value;
+      });
+      _loadPatientAndFillForm(value);
+    }
+  }
+
+  // -------------------------------------------------------
   // ON SAVE
   // -------------------------------------------------------
   Future<void> _onSave() async {
@@ -180,7 +267,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     try {
       String patientId;
 
-      if (widget.mode == ProfileMode.create) {
+      if (_mode == ProfileMode.create) {
         patientId = await _generatePatientId();
 
         if (await _checkDuplicateId(patientId)) {
@@ -207,22 +294,34 @@ class _ProfileWidgetState extends State<ProfileWidget> {
         'isActive': true,
       };
 
-      if (widget.mode == ProfileMode.create) {
+      if (_mode == ProfileMode.create) {
         data['createdAt'] = FieldValue.serverTimestamp();
       }
 
-      await _db.collection('patients').doc(patientId).set(
-            data,
-            SetOptions(merge: true),
-          );
+      await _db
+          .collection('patients')
+          .doc(patientId)
+          .set(data, SetOptions(merge: true));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(widget.mode == ProfileMode.create
-                ? "Patient Created"
-                : "Patient Updated")),
+          content: Text(_mode == ProfileMode.create
+              ? "Patient Created"
+              : "Patient Updated"),
+        ),
       );
 
+      // After creating, you may optionally switch to edit mode
+      // and set selected patient:
+      if (_mode == ProfileMode.create) {
+        setState(() {
+          _mode = ProfileMode.edit;
+          _patientIdCtrl.text = patientId;
+          _selectedPatientId = patientId;
+        });
+        // Reload dropdown list so the new patient appears
+        _loadPatientsForDropdown();
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
@@ -297,8 +396,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // TITLE
                   Text(
-                    widget.mode == ProfileMode.create
+                    _mode == ProfileMode.create
                         ? "Create Patient"
                         : "Edit Patient",
                     style: const TextStyle(
@@ -307,6 +407,33 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       color: Color(0xFF111827),
                     ),
                   ),
+                  const SizedBox(height: 24),
+
+                  // PATIENT SEARCH
+                  _label("Patient Search"),
+                  if (_loadingPatients)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(),
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      value: _selectedPatientId ?? '',
+                      decoration: _dec("Select patient to edit"),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('➕ New Patient (Create)'),
+                        ),
+                        ..._patientOptions.map(
+                          (p) => DropdownMenuItem(
+                            value: p.id,
+                            child: Text(p.label),
+                          ),
+                        ),
+                      ],
+                      onChanged: _loading ? null : _onPatientSelected,
+                    ),
                   const SizedBox(height: 24),
 
                   // ---------------------------------------------------
@@ -402,11 +529,16 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       ),
                     ),
                     child: _loading
-                        ? const CircularProgressIndicator(
-                            color: Colors.white,
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
                           )
                         : Text(
-                            widget.mode == ProfileMode.create
+                            _mode == ProfileMode.create
                                 ? "Create"
                                 : "Save Changes",
                             style:
@@ -421,4 +553,10 @@ class _ProfileWidgetState extends State<ProfileWidget> {
       ),
     );
   }
+}
+
+class _PatientOption {
+  final String id;
+  final String label;
+  _PatientOption({required this.id, required this.label});
 }
