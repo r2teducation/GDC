@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 enum ProfileMode { create, edit }
 
 class ProfileWidget extends StatefulWidget {
-  const ProfileWidget({super.key}); // 👈 no more mode/initial from outside
+  const ProfileWidget({super.key}); // 👈 internal mode handling
 
   @override
   State<ProfileWidget> createState() => _ProfileWidgetState();
@@ -29,7 +29,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   bool _loading = false; // for save / load
   bool _loadingPatients = true; // for dropdown loading
 
-  ProfileMode _mode = ProfileMode.create; // 👈 internal mode
+  ProfileMode _mode = ProfileMode.create; // internal mode
   String? _selectedPatientId; // from Patient Search
 
   final _db = FirebaseFirestore.instance;
@@ -57,7 +57,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
-  // LOAD PATIENT LIST FOR DROPDOWN
+  // LOAD PATIENT LIST FOR DROPDOWN (only active patients)
   // -------------------------------------------------------
   Future<void> _loadPatientsForDropdown() async {
     try {
@@ -67,6 +67,10 @@ class _ProfileWidgetState extends State<ProfileWidget> {
       final List<_PatientOption> opts = [];
       for (final doc in snap.docs) {
         final data = doc.data();
+
+        // skip soft-deleted patients
+        if (data['isActive'] == false) continue;
+
         final id = (data['patientId'] ?? doc.id).toString();
 
         final fullName = (data['fullName'] ??
@@ -74,7 +78,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
             .toString()
             .trim();
 
-        // label will be used for both display & searching
+        // label used for display & searching: "<id>  <name>"
         final label =
             fullName.isNotEmpty ? '$id  $fullName' : id.toString();
 
@@ -143,20 +147,21 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
-  // VALIDATIONS — AS REQUESTED
+  // VALIDATIONS
   // -------------------------------------------------------
   String? _req(String? v, {String name = "This field"}) {
     if (v == null || v.trim().isEmpty) return "$name is required";
     return null;
   }
 
+  // 🔥 updated: allow alphabets + spaces (same as typing rule)
   String? _nameVal(String? v, {String name = "This field"}) {
     if ((v ?? '').trim().isEmpty) return "$name is required";
 
     final t = v!.trim();
 
-    if (!RegExp(r'^[A-Za-z]+$').hasMatch(t)) {
-      return "$name must contain only alphabets";
+    if (!RegExp(r'^[A-Za-z ]+$').hasMatch(t)) {
+      return "$name must contain only alphabets and spaces";
     }
     if (t.length < 2) return "$name must be at least 2 characters";
     if (t.length > 50) return "$name must be under 50 characters";
@@ -255,7 +260,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
-  // ON SAVE
+  // CREATE / UPDATE
   // -------------------------------------------------------
   Future<void> _onSave() async {
     FocusScope.of(context).unfocus();
@@ -318,15 +323,13 @@ class _ProfileWidgetState extends State<ProfileWidget> {
         ),
       );
 
-      // After creating, you may optionally switch to edit mode
-      // and set selected patient:
+      // After creating, switch to edit mode and refresh dropdown
       if (_mode == ProfileMode.create) {
         setState(() {
           _mode = ProfileMode.edit;
           _patientIdCtrl.text = patientId;
           _selectedPatientId = patientId;
         });
-        // Reload dropdown list so the new patient appears
         _loadPatientsForDropdown();
       }
     } catch (e) {
@@ -341,9 +344,49 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
+  // SOFT DELETE
+  // -------------------------------------------------------
+  Future<void> _onDelete() async {
+    final patientId = _patientIdCtrl.text.trim();
+    if (patientId.isEmpty || patientId == 'Auto-generated') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No patient selected to delete')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      await _db.collection('patients').doc(patientId).update({
+        'isActive': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'deletedAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Patient deleted (soft delete)')),
+      );
+
+      // Reset to create mode, clear form, refresh dropdown
+      _clearForm();
+      setState(() {
+        _mode = ProfileMode.create;
+        _selectedPatientId = null;
+      });
+      await _loadPatientsForDropdown();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+    }
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  // -------------------------------------------------------
   // UI — MATCHES SimpleFormWidget
   // -------------------------------------------------------
-
   InputDecoration _dec(String hint) {
     return InputDecoration(
       isDense: true,
@@ -483,7 +526,6 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                             ),
                           ),
                         ),
-                        // filter by label (which already contains id + name)
                         searchMatchFn: (item, searchValue) {
                           final value = item.value ?? '';
                           if (value.isEmpty) {
@@ -501,16 +543,13 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       ),
                       onMenuStateChange: (isOpen) {
                         if (!isOpen) {
-                          // clear query when closing
                           _searchCtrl.clear();
                         }
                       },
                     ),
                   const SizedBox(height: 24),
 
-                  // ---------------------------------------------------
                   // PATIENT ID
-                  // ---------------------------------------------------
                   _label("Patient ID"),
                   TextFormField(
                     controller: _patientIdCtrl,
@@ -519,22 +558,32 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // FIRST NAME
+                  // FIRST NAME 🔥 (alphabets + space only, at typing time)
                   _label("First Name *"),
                   TextFormField(
                     controller: _firstNameCtrl,
                     textCapitalization: TextCapitalization.words,
                     validator: (v) => _nameVal(v, name: "First Name"),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[A-Za-z ]'),
+                      ),
+                    ],
                     decoration: _dec("Enter first name"),
                   ),
                   const SizedBox(height: 16),
 
-                  // LAST NAME
+                  // LAST NAME 🔥 (alphabets + space only, at typing time)
                   _label("Last Name *"),
                   TextFormField(
                     controller: _lastNameCtrl,
                     textCapitalization: TextCapitalization.words,
                     validator: (v) => _nameVal(v, name: "Last Name"),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[A-Za-z ]'),
+                      ),
+                    ],
                     decoration: _dec("Enter last name"),
                   ),
                   const SizedBox(height: 16),
@@ -555,24 +604,30 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // AGE
+                  // AGE 🔥 (digits only + max 3 chars)
                   _label("Age *"),
                   TextFormField(
                     controller: _ageCtrl,
                     validator: _ageVal,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3),
+                    ],
                     decoration: _dec("Enter age"),
                   ),
                   const SizedBox(height: 16),
 
-                  // MOBILE
+                  // MOBILE 🔥 (digits only + max 10 chars)
                   _label("Mobile Number *"),
                   TextFormField(
                     controller: _mobileCtrl,
                     validator: _mobileVal,
                     keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
                     decoration: _dec("10-digit mobile number"),
                   ),
                   const SizedBox(height: 16),
@@ -588,35 +643,85 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 32),
 
-                  // SAVE BUTTON
-                  ElevatedButton(
-                    onPressed: _loading ? null : _onSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  // ACTION BUTTONS
+                  if (_mode == ProfileMode.create)
+                    // CREATE MODE → single green button
+                    ElevatedButton(
+                      onPressed: _loading ? null : _onSave,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A), // green
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 28, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Create",
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
-                          )
-                        : Text(
-                            _mode == ProfileMode.create
-                                ? "Create"
-                                : "Save Changes",
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w700),
+                    )
+                  else
+                    // EDIT MODE → Update (orange) + Delete (red)
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: _loading ? null : _onSave,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                const Color(0xFFF97316), // orange
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                  ),
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  "Update",
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _loading ? null : _onDelete,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                const Color(0xFFDC2626), // red
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            "Delete",
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
