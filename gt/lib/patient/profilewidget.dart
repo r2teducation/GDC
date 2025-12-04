@@ -61,8 +61,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   // -------------------------------------------------------
   Future<void> _loadPatientsForDropdown() async {
     try {
-      final snap =
-          await _db.collection('patients').orderBy('patientId').get();
+      final snap = await _db.collection('patients').orderBy('patientId').get();
 
       final List<_PatientOption> opts = [];
       for (final doc in snap.docs) {
@@ -79,8 +78,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
             .trim();
 
         // label used for display & searching: "<id>  <name>"
-        final label =
-            fullName.isNotEmpty ? '$id  $fullName' : id.toString();
+        final label = fullName.isNotEmpty ? '$id  $fullName' : id.toString();
 
         opts.add(_PatientOption(id: id, label: label));
       }
@@ -154,7 +152,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     return null;
   }
 
-  // 🔥 updated: allow alphabets + spaces (same as typing rule)
+  // allow alphabets + spaces
   String? _nameVal(String? v, {String name = "This field"}) {
     if ((v ?? '').trim().isEmpty) return "$name is required";
 
@@ -211,8 +209,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   Future<void> _loadPatientAndFillForm(String patientId) async {
     setState(() => _loading = true);
     try {
-      final doc =
-          await _db.collection('patients').doc(patientId).get();
+      final doc = await _db.collection('patients').doc(patientId).get();
       if (!doc.exists) {
         throw Exception('Patient not found');
       }
@@ -426,8 +423,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     // assume label = "<id>  <name>"
     final parts = p.label.split(RegExp(r'\s{2,}')); // split by 2+ spaces
     final idPart = parts.isNotEmpty ? parts.first : p.id;
-    final namePart =
-        parts.length > 1 ? parts.sublist(1).join('  ') : '';
+    final namePart = parts.length > 1 ? parts.sublist(1).join('  ') : '';
 
     return Row(
       children: [
@@ -511,40 +507,65 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                         ),
                       ],
                       onChanged: _loading ? null : _onPatientSelected,
+
+                      // ✅ Use dropdownStyleData instead of dropdownDecoration
+                      dropdownStyleData: DropdownStyleData(
+                        decoration: BoxDecoration(
+                          color: const Color(
+                              0xFFF8FAFC), // same as form field fill
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      menuItemStyleData: const MenuItemStyleData(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+
                       dropdownSearchData: DropdownSearchData(
                         searchController: _searchCtrl,
-                        searchInnerWidgetHeight: 48,
+                        searchInnerWidgetHeight: 52,
                         searchInnerWidget: Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: TextField(
                             controller: _searchCtrl,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               isDense: true,
                               hintText: 'Search by ID / Name',
-                              prefixIcon: Icon(Icons.search, size: 18),
-                              border: OutlineInputBorder(),
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
                         searchMatchFn: (item, searchValue) {
                           final value = item.value ?? '';
-                          if (value.isEmpty) {
-                            // always show "New Patient"
-                            return true;
-                          }
+                          if (value.isEmpty)
+                            return true; // always show "New Patient"
                           final opt = _patientOptions.firstWhere(
                             (p) => p.id == value,
                             orElse: () =>
                                 _PatientOption(id: value, label: value),
                           );
-                          final query = searchValue.toLowerCase();
-                          return opt.label.toLowerCase().contains(query);
+                          return opt.label
+                              .toLowerCase()
+                              .contains(searchValue.toLowerCase());
                         },
                       ),
                       onMenuStateChange: (isOpen) {
-                        if (!isOpen) {
-                          _searchCtrl.clear();
-                        }
+                        if (!isOpen) _searchCtrl.clear();
                       },
                     ),
                   const SizedBox(height: 24),
@@ -558,7 +579,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // FIRST NAME 🔥 (alphabets + space only, at typing time)
+                  // FIRST NAME (alphabets + space only)
                   _label("First Name *"),
                   TextFormField(
                     controller: _firstNameCtrl,
@@ -573,7 +594,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // LAST NAME 🔥 (alphabets + space only, at typing time)
+                  // LAST NAME (alphabets + space only)
                   _label("Last Name *"),
                   TextFormField(
                     controller: _lastNameCtrl,
@@ -604,7 +625,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // AGE 🔥 (digits only + max 3 chars)
+                  // AGE
                   _label("Age *"),
                   TextFormField(
                     controller: _ageCtrl,
@@ -618,7 +639,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // MOBILE 🔥 (digits only + max 10 chars)
+                  // MOBILE
                   _label("Mobile Number *"),
                   TextFormField(
                     controller: _mobileCtrl,
@@ -678,8 +699,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                         ElevatedButton(
                           onPressed: _loading ? null : _onSave,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color(0xFFF97316), // orange
+                            backgroundColor: const Color(0xFFF97316), // orange
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 24, vertical: 14),
@@ -698,16 +718,14 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                                 )
                               : const Text(
                                   "Update",
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w700),
+                                  style: TextStyle(fontWeight: FontWeight.w700),
                                 ),
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
                           onPressed: _loading ? null : _onDelete,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color(0xFFDC2626), // red
+                            backgroundColor: const Color(0xFFDC2626), // red
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 24, vertical: 14),
