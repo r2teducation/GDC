@@ -61,7 +61,7 @@ class _AutoCareHomeState extends State<AutoCareHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 0), // 🔥 Top bar removed completely
+                const SizedBox(height: 0),
 
                 Expanded(
                   child: Padding(
@@ -105,7 +105,6 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const bg = Color(0xFF0F172A);
-    const active = Color(0xFF14B8A6);
 
     return Container(
       width: 280,
@@ -114,7 +113,7 @@ class _Sidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Brand bar
+            // BRAND BAR
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -143,7 +142,7 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
 
-            // Profile card
+            // PROFILE CARD
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),
@@ -185,6 +184,7 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
 
+            // MENU
             Expanded(
               child: ListView(
                 children: [
@@ -196,7 +196,7 @@ class _Sidebar extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
 
-                  // PATIENT GROUP
+                  // PATIENT GROUP ONLY
                   _Collapsible(
                     icon: Icons.people_alt_outlined,
                     label: 'Patient',
@@ -217,10 +217,6 @@ class _Sidebar extends StatelessWidget {
                       _SideSubItem(label: 'Records', onTap: () {}),
                     ],
                   ),
-
-                  const SizedBox(height: 6),
-                  const _SideItem(icon: Icons.map_outlined, label: 'Tab 5'),
-                  const _SideItem(icon: Icons.help_outline, label: 'Tab 6'),
 
                   const SizedBox(height: 16),
                   const Padding(

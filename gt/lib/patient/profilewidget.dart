@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,12 +22,15 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   final _mobileCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
 
+  // search text inside dropdown
+  final TextEditingController _searchCtrl = TextEditingController();
+
   String? _gender; // M / F / O
-  bool _loading = false;        // for save / load
+  bool _loading = false; // for save / load
   bool _loadingPatients = true; // for dropdown loading
 
   ProfileMode _mode = ProfileMode.create; // 👈 internal mode
-  String? _selectedPatientId;            // from Patient Search
+  String? _selectedPatientId; // from Patient Search
 
   final _db = FirebaseFirestore.instance;
 
@@ -40,26 +44,40 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     _loadPatientsForDropdown();
   }
 
+  @override
+  void dispose() {
+    _patientIdCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _ageCtrl.dispose();
+    _mobileCtrl.dispose();
+    _addressCtrl.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   // -------------------------------------------------------
   // LOAD PATIENT LIST FOR DROPDOWN
   // -------------------------------------------------------
   Future<void> _loadPatientsForDropdown() async {
     try {
-      final snap = await _db
-          .collection('patients')
-          .orderBy('patientId')
-          .get();
+      final snap =
+          await _db.collection('patients').orderBy('patientId').get();
 
       final List<_PatientOption> opts = [];
       for (final doc in snap.docs) {
         final data = doc.data();
-        final id = data['patientId'] ?? doc.id;
+        final id = (data['patientId'] ?? doc.id).toString();
+
         final fullName = (data['fullName'] ??
                 '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
             .toString()
             .trim();
+
+        // label will be used for both display & searching
         final label =
             fullName.isNotEmpty ? '$id  $fullName' : id.toString();
+
         opts.add(_PatientOption(id: id, label: label));
       }
 
@@ -100,17 +118,6 @@ class _ProfileWidgetState extends State<ProfileWidget> {
       default:
         return 'Other';
     }
-  }
-
-  @override
-  void dispose() {
-    _patientIdCtrl.dispose();
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
-    _ageCtrl.dispose();
-    _mobileCtrl.dispose();
-    _addressCtrl.dispose();
-    super.dispose();
   }
 
   // -------------------------------------------------------
@@ -371,6 +378,33 @@ class _ProfileWidgetState extends State<ProfileWidget> {
         ),
       );
 
+  // helper to build each dropdown row: [ID]  [Name...]
+  Widget _buildPatientOptionRow(_PatientOption p) {
+    // assume label = "<id>  <name>"
+    final parts = p.label.split(RegExp(r'\s{2,}')); // split by 2+ spaces
+    final idPart = parts.isNotEmpty ? parts.first : p.id;
+    final namePart =
+        parts.length > 1 ? parts.sublist(1).join('  ') : '';
+
+    return Row(
+      children: [
+        Text(
+          idPart,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            namePart,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -417,7 +451,8 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       child: LinearProgressIndicator(),
                     )
                   else
-                    DropdownButtonFormField<String>(
+                    DropdownButtonFormField2<String>(
+                      isExpanded: true,
                       value: _selectedPatientId ?? '',
                       decoration: _dec("Select patient to edit"),
                       items: [
@@ -426,13 +461,50 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                           child: Text('➕ New Patient (Create)'),
                         ),
                         ..._patientOptions.map(
-                          (p) => DropdownMenuItem(
+                          (p) => DropdownMenuItem<String>(
                             value: p.id,
-                            child: Text(p.label),
+                            child: _buildPatientOptionRow(p),
                           ),
                         ),
                       ],
                       onChanged: _loading ? null : _onPatientSelected,
+                      dropdownSearchData: DropdownSearchData(
+                        searchController: _searchCtrl,
+                        searchInnerWidgetHeight: 48,
+                        searchInnerWidget: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: TextField(
+                            controller: _searchCtrl,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              hintText: 'Search by ID / Name',
+                              prefixIcon: Icon(Icons.search, size: 18),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        // filter by label (which already contains id + name)
+                        searchMatchFn: (item, searchValue) {
+                          final value = item.value ?? '';
+                          if (value.isEmpty) {
+                            // always show "New Patient"
+                            return true;
+                          }
+                          final opt = _patientOptions.firstWhere(
+                            (p) => p.id == value,
+                            orElse: () =>
+                                _PatientOption(id: value, label: value),
+                          );
+                          final query = searchValue.toLowerCase();
+                          return opt.label.toLowerCase().contains(query);
+                        },
+                      ),
+                      onMenuStateChange: (isOpen) {
+                        if (!isOpen) {
+                          // clear query when closing
+                          _searchCtrl.clear();
+                        }
+                      },
                     ),
                   const SizedBox(height: 24),
 
@@ -557,6 +629,6 @@ class _ProfileWidgetState extends State<ProfileWidget> {
 
 class _PatientOption {
   final String id;
-  final String label;
+  final String label; // contains ID + name for display & searching
   _PatientOption({required this.id, required this.label});
 }
