@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
 import 'package:gt/patient/profilewidget.dart';
+import 'package:gt/patient/visitswidget.dart';
 
 class AutoCareApp extends StatelessWidget {
   const AutoCareApp({super.key});
@@ -62,15 +63,13 @@ class _AutoCareHomeState extends State<AutoCareHome> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 0),
-
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
                       'dashboard' => const DashboardWidget(),
                       'sub4_1' => const ProfileWidget(),
-                      'sub4_2' =>
-                        const Center(child: Text('Development in Progress')),
+                      'sub4_2' => const VisitsWidget(), // 👈 link Visits tab
                       _ => const DashboardWidget(),
                     },
                   ),
@@ -356,7 +355,6 @@ class _Collapsible extends StatelessWidget {
             ),
           ),
         ),
-
         if (open)
           Padding(
             padding: const EdgeInsets.only(left: 52),
