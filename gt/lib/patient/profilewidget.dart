@@ -171,7 +171,10 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     if (v == null || v.trim().isEmpty) return "Age is required";
     final age = int.tryParse(v.trim());
     if (age == null) return "Enter a valid number";
-    if (age < 0 || age > 120) return "Age must be between 0–120";
+
+    if (age < 1 || age > 120) {
+      return "Age must be between 1–120";
+    }
     return null;
   }
 
@@ -508,8 +511,11 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       ],
                       onChanged: _loading ? null : _onPatientSelected,
 
-                      // ✅ Use dropdownStyleData instead of dropdownDecoration
+                      // 🔽 here we limit dropdown height + keep your nice styling
                       dropdownStyleData: DropdownStyleData(
+                        // 👇 height for about 6 items (tweak as you like)
+                        maxHeight: 280,
+
                         decoration: BoxDecoration(
                           color: const Color(
                               0xFFF8FAFC), // same as form field fill
@@ -522,9 +528,18 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                             ),
                           ],
                         ),
+
+                        // optional: nicer visible scrollbar
+                        scrollbarTheme: ScrollbarThemeData(
+                          radius: const Radius.circular(12),
+                          thickness: MaterialStateProperty.all(4),
+                          thumbVisibility: MaterialStateProperty.all(true),
+                        ),
                       ),
 
                       menuItemStyleData: const MenuItemStyleData(
+                        // 👇 reduce height slightly so 6 fit nicely
+                        height: 44,
                         padding:
                             EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
@@ -586,9 +601,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                     textCapitalization: TextCapitalization.words,
                     validator: (v) => _nameVal(v, name: "First Name"),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[A-Za-z ]'),
-                      ),
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
+                      SingleSpaceNameFormatter(),
+                      LengthLimitingTextInputFormatter(50),
                     ],
                     decoration: _dec("Enter first name"),
                   ),
@@ -601,9 +616,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                     textCapitalization: TextCapitalization.words,
                     validator: (v) => _nameVal(v, name: "Last Name"),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[A-Za-z ]'),
-                      ),
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
+                      SingleSpaceNameFormatter(),
+                      LengthLimitingTextInputFormatter(50),
                     ],
                     decoration: _dec("Enter last name"),
                   ),
@@ -647,7 +662,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                     keyboardType: TextInputType.phone,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(10),
+                      LengthLimitingTextInputFormatter(
+                          11), // 10 digits + 1 space
+                      MobileNumberFormatter(),
                     ],
                     decoration: _dec("10-digit mobile number"),
                   ),
@@ -754,4 +771,52 @@ class _PatientOption {
   final String id;
   final String label; // contains ID + name for display & searching
   _PatientOption({required this.id, required this.label});
+}
+
+class MobileNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String digits = newValue.text.replaceAll(' ', ''); // remove spaces
+
+    // limit to 10 digits
+    if (digits.length > 10) digits = digits.substring(0, 10);
+
+    String formatted = '';
+    for (int i = 0; i < digits.length; i++) {
+      formatted += digits[i];
+      if (i == 4 && digits.length > 5)
+        formatted += ' '; // add space after 5th digit
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class SingleSpaceNameFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String text = newValue.text;
+
+    // Replace multiple spaces with a single space
+    text = text.replaceAll(RegExp(r'\s+'), ' ');
+
+    // Remove leading spaces
+    if (text.startsWith(' ')) {
+      text = text.trimLeft();
+    }
+
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
 }
