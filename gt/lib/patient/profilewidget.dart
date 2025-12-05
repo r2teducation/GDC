@@ -181,7 +181,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   String? _mobileVal(String? v) {
     if ((v ?? '').trim().isEmpty) return "Mobile number is required";
 
-    final digits = v!.trim();
+    // remove all spaces
+    final digits = v!.replaceAll(' ', '');
+
     if (!RegExp(r'^[0-9]{10}$').hasMatch(digits)) {
       return "Enter a valid 10-digit number";
     }
