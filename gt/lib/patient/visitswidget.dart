@@ -635,7 +635,6 @@ class _VisitsWidgetState extends State<VisitsWidget> {
                       },
                     ),
                   const SizedBox(height: 24),
-
                   if (_loadingVisit)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 16),
@@ -652,40 +651,73 @@ class _VisitsWidgetState extends State<VisitsWidget> {
                     validator: _validateRegistrationDate,
                   ),
                   const SizedBox(height: 16),
-
                   // REFERRED BY
                   _label("Referred By *"),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField2<String>(
+                    isExpanded: true,
                     value: _referredBy,
                     decoration: _dec("Select source"),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'D', child: Text("Doctor")),
-                      DropdownMenuItem(
-                          value: 'P', child: Text("Patient")),
-                      DropdownMenuItem(
-                          value: 'O', child: Text("Online")),
-                      DropdownMenuItem(
-                          value: 'X', child: Text("Other")),
+                      DropdownMenuItem(value: 'D', child: Text("Doctor")),
+                      DropdownMenuItem(value: 'P', child: Text("Patient")),
+                      DropdownMenuItem(value: 'O', child: Text("Online")),
+                      DropdownMenuItem(value: 'X', child: Text("Other")),
                     ],
                     onChanged: (v) => setState(() => _referredBy = v),
                     validator: _validateReferredBy,
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 220,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 44,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
                   const SizedBox(height: 16),
 
                   // APPOINTMENT TYPE
                   _label("Appointment Type *"),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField2<String>(
+                    isExpanded: true,
                     value: _appointmentType,
                     decoration: _dec("Select appointment type"),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'N', child: Text("New")),
-                      DropdownMenuItem(
-                          value: 'F', child: Text("Follow-up")),
+                      DropdownMenuItem(value: 'N', child: Text("New")),
+                      DropdownMenuItem(value: 'F', child: Text("Follow-up")),
                     ],
                     onChanged: (v) => setState(() => _appointmentType = v),
                     validator: _validateAppointmentType,
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 180,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 44,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -702,17 +734,35 @@ class _VisitsWidgetState extends State<VisitsWidget> {
 
                   // CONSENT SIGNED
                   _label("Consent Forms Signed *"),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField2<String>(
+                    isExpanded: true,
                     value: _consentSigned,
                     decoration: _dec("Select"),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'Y', child: Text("Yes")),
-                      DropdownMenuItem(
-                          value: 'N', child: Text("No")),
+                      DropdownMenuItem(value: 'Y', child: Text("Yes")),
+                      DropdownMenuItem(value: 'N', child: Text("No")),
                     ],
                     onChanged: (v) => setState(() => _consentSigned = v),
                     validator: _validateConsentSigned,
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 160,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 44,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
                   const SizedBox(height: 32),
 
