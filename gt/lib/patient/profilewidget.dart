@@ -57,6 +57,33 @@ class _ProfileWidgetState extends State<ProfileWidget> {
   }
 
   // -------------------------------------------------------
+// COMPOSITE (FIRST + LAST + MOBILE) DUPLICATE CHECK
+// -------------------------------------------------------
+  Future<String?> _findDuplicateComposite(
+    String firstName,
+    String lastName,
+    String mobileFormatted,
+  ) async {
+    // Normalise mobile: strip spaces
+    final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
+
+    // Normalise names: lowercase, trim
+    final key =
+        '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+
+    final snap = await _db
+        .collection('patients')
+        .where('compositeKey', isEqualTo: key)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null; // no duplicate
+
+    // Return the existing patient's id (document id == patientId)
+    return snap.docs.first.id;
+  }
+
+  // -------------------------------------------------------
   // LOAD PATIENT LIST FOR DROPDOWN (only active patients)
   // -------------------------------------------------------
   Future<void> _loadPatientsForDropdown() async {
@@ -279,6 +306,58 @@ class _ProfileWidgetState extends State<ProfileWidget> {
     setState(() => _loading = true);
 
     try {
+      // ----- 1. Gather & normalise basic fields -----
+      final firstName = _firstNameCtrl.text.trim();
+      final lastName = _lastNameCtrl.text.trim();
+      final mobileFormatted = _mobileCtrl.text; // may contain a space
+      final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
+
+      // Safety: mobile should already be valid from validator, but double-check
+      if (!RegExp(r'^[0-9]{10}$').hasMatch(mobileRaw)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Enter a valid 10-digit number")),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      // Composite key (normalized)
+      final compositeKey =
+          '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+
+      // ----- 2. Composite-uniqueness check -----
+      final dupId =
+          await _findDuplicateComposite(firstName, lastName, mobileFormatted);
+
+      // CREATE: any duplicate is not allowed
+      if (_mode == ProfileMode.create && dupId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Patient already exists with ID $dupId (same name & mobile)',
+            ),
+          ),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      // EDIT: allow if it's the *same* patient, block if different patient
+      if (_mode == ProfileMode.edit &&
+          dupId != null &&
+          dupId != _patientIdCtrl.text.trim()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Another patient already exists with same name & mobile (ID $dupId)',
+            ),
+          ),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      // ----- 3. Get / generate patientId as before -----
       String patientId;
 
       if (_mode == ProfileMode.create) {
@@ -288,13 +367,12 @@ class _ProfileWidgetState extends State<ProfileWidget> {
           throw Exception("Duplicate Patient ID generated. Try again.");
         }
       } else {
-        patientId = _patientIdCtrl.text;
+        patientId = _patientIdCtrl.text.trim();
       }
 
-      final firstName = _firstNameCtrl.text.trim();
-      final lastName = _lastNameCtrl.text.trim();
       final fullName = "$firstName $lastName";
 
+      // ----- 4. Build data payload (note: mobileRaw + compositeKey) -----
       final data = {
         'patientId': patientId,
         'firstName': firstName,
@@ -302,8 +380,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
         'fullName': fullName,
         'gender': _fromCode(_gender!),
         'age': int.parse(_ageCtrl.text.trim()),
-        'mobile': _mobileCtrl.text.trim(),
+        'mobile': mobileRaw, // 👈 stored without spaces
         'address': _addressCtrl.text.trim(),
+        'compositeKey': compositeKey, // 👈 NEW field for uniqueness
         'updatedAt': FieldValue.serverTimestamp(),
         'isActive': true,
       };
@@ -312,6 +391,7 @@ class _ProfileWidgetState extends State<ProfileWidget> {
         data['createdAt'] = FieldValue.serverTimestamp();
       }
 
+      // ----- 5. Save (works for both create & update) -----
       await _db
           .collection('patients')
           .doc(patientId)
@@ -319,9 +399,9 @@ class _ProfileWidgetState extends State<ProfileWidget> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_mode == ProfileMode.create
-              ? "Patient Created"
-              : "Patient Updated"),
+          content: Text(
+            _mode == ProfileMode.create ? "Patient Created" : "Patient Updated",
+          ),
         ),
       );
 
@@ -628,7 +708,8 @@ class _ProfileWidgetState extends State<ProfileWidget> {
 
                   // GENDER
                   _label("Gender *"),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField2<String>(
+                    isExpanded: true,
                     value: _gender,
                     decoration: _dec("Select gender"),
                     items: const [
@@ -636,9 +717,32 @@ class _ProfileWidgetState extends State<ProfileWidget> {
                       DropdownMenuItem(value: 'F', child: Text("Female")),
                       DropdownMenuItem(value: 'O', child: Text("Other")),
                     ],
-                    onChanged: (v) => setState(() => _gender = v),
-                    validator: (_) =>
-                        _gender == null ? "Gender is required" : null,
+                    onChanged: (value) => setState(() => _gender = value),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Gender is required";
+                      }
+                      return null;
+                    },
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 220,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 44,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
                   const SizedBox(height: 16),
 
