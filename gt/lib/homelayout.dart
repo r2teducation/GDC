@@ -7,6 +7,7 @@ import 'package:gt/patient/patientdetailswidget.dart';
 // wire appointment widgets (paths you specified)
 import 'package:gt/appointment/AppointmentWidget.dart';
 import 'package:gt/appointment/appointmentdetailswidget.dart';
+import 'package:gt/appointment/eventscalendarwidget.dart'; // <-- NEW IMPORT
 
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
@@ -83,6 +84,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
             onOpenAppointmentSub1: () => setState(() => _route = 'appointment_sub_tab_1'),
             onOpenAppointmentSub2: () => setState(() => _route = 'appointment_sub_tab_2'),
+            onOpenAppointmentSub3: () => setState(() => _route = 'appointment_sub_tab_3'),
 
             onOpenTreatmentSub1: () => setState(() => _route = 'treatment_sub_tab_1'),
             onOpenTreatmentSub2: () => setState(() => _route = 'treatment_sub_tab_2'),
@@ -113,6 +115,10 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                       // appointment details (wired to AppointmentDetailsWidget)
                       'appointment_sub_tab_2' =>
                         const AppointmentDetailsWidget(),
+
+                      // calendar (3rd sub tab)
+                      'appointment_sub_tab_3' =>
+                        const EventsCalendarWidget(),
 
                       // treatment placeholders
                       'treatment_sub_tab_1' =>
@@ -191,6 +197,7 @@ class _Sidebar extends StatelessWidget {
   // appointment sub-tab openers
   final VoidCallback onOpenAppointmentSub1;
   final VoidCallback onOpenAppointmentSub2;
+  final VoidCallback onOpenAppointmentSub3;
 
   // treatment sub-tab openers
   final VoidCallback onOpenTreatmentSub1;
@@ -221,6 +228,7 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenPatientDetails,
     required this.onOpenAppointmentSub1,
     required this.onOpenAppointmentSub2,
+    required this.onOpenAppointmentSub3,
     required this.onOpenTreatmentSub1,
     required this.onOpenTreatmentSub2,
     required this.onOpenPaymentSub1,
@@ -352,6 +360,7 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       _SideSubItem(label: 'Book Appointment', onTap: onOpenAppointmentSub1),
                       _SideSubItem(label: 'Appointment Details', onTap: onOpenAppointmentSub2),
+                      _SideSubItem(label: 'Calendar', onTap: onOpenAppointmentSub3),
                     ],
                   ),
 
@@ -556,6 +565,7 @@ class _SideSubItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Restored left-aligned layout (small leading spacer + label)
     return Padding(
       padding: const EdgeInsets.only(right: 12, bottom: 8),
       child: Material(
@@ -571,8 +581,7 @@ class _SideSubItem extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style:
-                      const TextStyle(color: Color(0xFFE5E7EB), fontSize: 14),
+                  style: const TextStyle(color: Color(0xFFE5E7EB), fontSize: 14),
                 ),
               ],
             ),

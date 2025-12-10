@@ -1,306 +1,296 @@
-// events_calendar_widget.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Small model for calendar events (appointments).
-class AppointmentEvent {
-  final String id;
+/// Small event model
+class CalendarEvent {
   final String patientName;
-  final DateTime start;
-  final DateTime end;
-  /// 'N' = New, 'F' = Follow Up
-  final String type;
-
-  AppointmentEvent({
-    required this.id,
+  final TimeOfDay start;
+  final TimeOfDay end;
+  final bool isFollowUp; // false -> New (blue), true -> Follow Up (orange)
+  CalendarEvent({
     required this.patientName,
     required this.start,
     required this.end,
-    required this.type,
+    this.isFollowUp = false,
   });
 }
 
-/// Calendar widget showing a month grid and events per day.
-/// Provide a list of AppointmentEvent via the `events` parameter.
-/// Colors: blue for New (N), orange for Follow Up (F).
+/// Events calendar widget
 class EventsCalendarWidget extends StatefulWidget {
-  final List<AppointmentEvent> events;
-  final DateTime? initialMonth;
-  final void Function(AppointmentEvent)? onTapEvent;
-
-  const EventsCalendarWidget({
-    super.key,
-    this.events = const [],
-    this.initialMonth,
-    this.onTapEvent,
-  });
+  const EventsCalendarWidget({super.key});
 
   @override
   State<EventsCalendarWidget> createState() => _EventsCalendarWidgetState();
 }
 
 class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
-  late DateTime _visibleMonth; // first day of visible month
-  final DateFormat _monthFormat = DateFormat('MMMM yyyy');
-  final DateFormat _timeFormat = DateFormat('h:mm a');
-  final List<String> _weekdaysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  final DateFormat _headerFormatter = DateFormat('MMMM yyyy'); // e.g. December 2025
+  final DateFormat _dayFormat = DateFormat('d');
+
+  // sample events map keyed by yyyy-mm-dd string for simplicity
+  // Replace this with Firestore-loaded events in your app
+  Map<String, List<CalendarEvent>> _sampleEvents = {};
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    final init = widget.initialMonth ?? DateTime(now.year, now.month, 1);
-    _visibleMonth = DateTime(init.year, init.month, 1);
+
+    // sample data for demo — two events on a couple of dates
+    final today = DateTime.now();
+    final key1 = _ymd(DateTime(today.year, today.month, 10));
+    final key2 = _ymd(DateTime(today.year, today.month, 17));
+    _sampleEvents = {
+      key1: [
+        CalendarEvent(
+          patientName: 'Rama K.',
+          start: const TimeOfDay(hour: 10, minute: 0),
+          end: const TimeOfDay(hour: 10, minute: 30),
+          isFollowUp: false,
+        ),
+        CalendarEvent(
+          patientName: 'Sunita T.',
+          start: const TimeOfDay(hour: 11, minute: 0),
+          end: const TimeOfDay(hour: 11, minute: 30),
+          isFollowUp: true,
+        ),
+        CalendarEvent(
+          patientName: 'Vikas P.',
+          start: const TimeOfDay(hour: 14, minute: 0),
+          end: const TimeOfDay(hour: 14, minute: 30),
+          isFollowUp: true,
+        ),
+      ],
+      key2: [
+        CalendarEvent(
+          patientName: 'Amit R.',
+          start: const TimeOfDay(hour: 9, minute: 30),
+          end: const TimeOfDay(hour: 10, minute: 0),
+          isFollowUp: false,
+        ),
+      ],
+    };
   }
 
-  // group events by date key 'yyyy-MM-dd'
-  Map<String, List<AppointmentEvent>> _groupEventsByDay() {
-    final map = <String, List<AppointmentEvent>>{};
-    for (final e in widget.events) {
-      final key = _dayKey(e.start);
-      map.putIfAbsent(key, () => []).add(e);
-    }
+  /// Helper to produce an easy key for a date
+  String _ymd(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-    // sort each list by start time
-    for (final v in map.values) {
-      v.sort((a, b) => a.start.compareTo(b.start));
-    }
-    return map;
-  }
-
-  String _dayKey(DateTime d) => DateFormat('yyyy-MM-dd').format(DateTime(d.year, d.month, d.day));
-
-  void _prevMonth() {
+  void _goToPreviousMonth() {
     setState(() {
-      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1);
+      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
     });
   }
 
-  void _nextMonth() {
+  void _goToNextMonth() {
     setState(() {
-      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1);
+      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
     });
   }
 
-  Future<void> _pickMonth() async {
-    // simple month picker using showDatePicker limited to 1st of month selection;
-    // user selects a day; we switch to that month.
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _visibleMonth,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-      helpText: 'Select month',
-      fieldLabelText: 'Month',
-    );
-    if (picked != null) {
-      setState(() {
-        _visibleMonth = DateTime(picked.year, picked.month, 1);
-      });
-    }
+  /// Build list of DateTimes that will fill a 6-row calendar (42 cells)
+  List<DateTime> _buildCalendarDays(DateTime month) {
+    final firstOfMonth = DateTime(month.year, month.month, 1);
+    // Dart weekday: Monday=1 ... Sunday=7. We want week starting Sunday -> index 0
+    final int weekdayOfFirst = firstOfMonth.weekday % 7; // Sunday -> 0
+    final start = firstOfMonth.subtract(Duration(days: weekdayOfFirst));
+    final days = List<DateTime>.generate(42, (i) => start.add(Duration(days: i)));
+    return days;
   }
 
-  Color _colorForType(String t) {
-    if (t == 'N') return const Color(0xFF2563EB); // blue
-    if (t == 'F') return const Color(0xFFF97316); // orange
-    return const Color(0xFF6B7280); // gray fallback
-  }
+  bool _isSameDate(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context) {
-    final eventsByDay = _groupEventsByDay();
-
-    // compute grid start (Sunday) and 6x7 matrix
-    final firstOfMonth = _visibleMonth;
-    final startOffset = firstOfMonth.weekday % 7; // DateTime.weekday: Mon=1..Sun=7; we want Sun=0
-    final gridStart = firstOfMonth.subtract(Duration(days: startOffset));
-    final cells = List<DateTime>.generate(42, (i) => DateTime(gridStart.year, gridStart.month, gridStart.day + i));
+    final days = _buildCalendarDays(_focusedMonth);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header: Month + nav
-        Row(
-          children: [
-            IconButton(
-              onPressed: _prevMonth,
-              icon: const Icon(Icons.chevron_left),
-            ),
-            Expanded(
-              child: GestureDetector(
-                onTap: _pickMonth,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _monthFormat.format(_visibleMonth),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.keyboard_arrow_down, size: 20),
-                  ],
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: _nextMonth,
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Weekday headers
-        Container(
+        // header with prev / month / next
+        Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
-            children: _weekdaysShort
-                .map((d) => Expanded(
-                      child: Center(
-                        child: Text(
-                          d,
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)),
-                        ),
-                      ),
-                    ))
-                .toList(),
+            children: [
+              IconButton(
+                onPressed: _goToPreviousMonth,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Center(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<DateTime>(
+                      value: DateTime(_focusedMonth.year, _focusedMonth.month),
+                      items: List.generate(24, (i) {
+                        // show +/- 12 months from now — adjust range as needed
+                        final m =
+                            DateTime(DateTime.now().year, DateTime.now().month + i - 12);
+                        return DropdownMenuItem<DateTime>(
+                          value: DateTime(m.year, m.month),
+                          child: Text(_headerFormatter.format(m)),
+                        );
+                      }),
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setState(() => _focusedMonth = DateTime(val.year, val.month));
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _goToNextMonth,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
           ),
         ),
 
         const SizedBox(height: 8),
 
-        // Big calendar grid
-        AspectRatio(
-          aspectRatio: 7 / 6, // approximate tall grid
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12)],
-            ),
+        // weekday labels
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: const [
+              Expanded(child: Center(child: Text('Sun'))),
+              Expanded(child: Center(child: Text('Mon'))),
+              Expanded(child: Center(child: Text('Tue'))),
+              Expanded(child: Center(child: Text('Wed'))),
+              Expanded(child: Center(child: Text('Thu'))),
+              Expanded(child: Center(child: Text('Fri'))),
+              Expanded(child: Center(child: Text('Sat'))),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // The calendar grid is placed inside Expanded so it fills available space and can scroll
+        // if child content is bigger than the available area — prevents RenderFlex overflow.
+        Expanded(
+          child: Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 children: [
-                  // Use Expanded grid of 6 rows
+                  // 1) calendar grid: using Expanded to allow inner scrolling if needed
                   Expanded(
-                    child: Column(
-                      children: List.generate(6, (row) {
-                        final rowCells = cells.skip(row * 7).take(7).toList();
-                        return Expanded(
-                          child: Row(
-                            children: rowCells.map((day) {
-                              final key = _dayKey(day);
-                              final dayEvents = eventsByDay[key] ?? [];
-                              final isCurrentMonth = day.month == _visibleMonth.month;
-                              final isToday = _isSameDay(day, DateTime.now());
+                    child: GridView.count(
+                      crossAxisCount: 7,
+                      childAspectRatio: 1.25,
+                      physics: const ClampingScrollPhysics(),
+                      children: days.map((d) {
+                        final ymd = _ymd(d);
+                        final events = _sampleEvents[ymd] ?? [];
+                        final isCurrentMonth = d.month == _focusedMonth.month;
 
-                              return Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    // open day details
-                                    _openDaySheet(day, dayEvents);
-                                  },
-                                  child: Container(
-                                    margin: const EdgeInsets.all(4),
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: isCurrentMonth ? Colors.transparent : const Color(0xFFF8FAFC),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: isToday ? const Color(0xFF0EA5A4) : Colors.transparent, width: isToday ? 2 : 0),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        // day number
-                                        Row(
-                                          children: [
-                                            Text(
-                                              '${day.day}',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                color: isCurrentMonth ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            if (dayEvents.isNotEmpty)
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: dayEvents.length > 0 ? Colors.black.withOpacity(0.03) : Colors.transparent,
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Text(
-                                                  '${dayEvents.length}',
-                                                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                                                ),
-                                              ),
-                                          ],
+                        // compute counts
+                        final int newCount =
+                            events.where((e) => e.isFollowUp == false).length;
+                        final int followUpCount =
+                            events.where((e) => e.isFollowUp == true).length;
+
+                        return Padding(
+                          padding: const EdgeInsets.all(6.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: isCurrentMonth ? Colors.white : Colors.grey.shade100,
+                              border: Border.all(
+                                color: _isSameDate(d, DateTime.now())
+                                    ? const Color(0xFF16A34A)
+                                    : Colors.transparent,
+                                width: _isSameDate(d, DateTime.now()) ? 2 : 0,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // top row: day number and counts (right-aligned)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        _dayFormat.format(d),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: isCurrentMonth ? Colors.black87 : Colors.grey,
                                         ),
-                                        const SizedBox(height: 6),
-
-                                        // events preview (up to 3)
-                                        ...dayEvents.take(3).map((e) {
-                                          final color = _colorForType(e.type);
-                                          final timeRange = '${_timeFormat.format(e.start)} - ${_timeFormat.format(e.end)}';
-                                          return Padding(
-                                            padding: const EdgeInsets.only(bottom: 4),
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: color.withOpacity(0.12),
-                                                border: Border.all(color: color.withOpacity(0.22)),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          e.patientName,
-                                                          style: TextStyle(
-                                                            fontWeight: FontWeight.w700,
-                                                            fontSize: 12,
-                                                            color: Colors.black87,
-                                                          ),
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
-                                                        const SizedBox(height: 2),
-                                                        Text(
-                                                          timeRange,
-                                                          style: TextStyle(fontSize: 11, color: Colors.black54),
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-
-                                        // if more events exist show indicator
-                                        if (dayEvents.length > 3)
-                                          Text(
-                                            '+ ${dayEvents.length - 3} more',
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                                          ),
-                                      ],
-                                    ),
+                                      ),
+                                      const Spacer(),
+                                      // badges for counts (small)
+                                      if (newCount > 0)
+                                        _countBadge(newCount, Colors.blue, 'New'),
+                                      const SizedBox(width: 6),
+                                      if (followUpCount > 0)
+                                        _countBadge(followUpCount, Colors.orange, 'Follow Up'),
+                                    ],
                                   ),
                                 ),
-                              );
-                            }).toList(),
+                                const SizedBox(height: 4),
+
+                                // events list (scroll inside cell if many)
+                                if (events.isEmpty)
+                                  const Expanded(child: SizedBox.shrink())
+                                else
+                                  Expanded(
+                                    child: ListView.builder(
+                                      itemCount: events.length,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      itemBuilder: (context, idx) {
+                                        final ev = events[idx];
+                                        final color = ev.isFollowUp ? Colors.orange : Colors.blue;
+                                        // patient name bold + time range
+                                        final start = ev.start.format(context);
+                                        final end = ev.end.format(context);
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 6),
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(ev.patientName,
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: color.shade700)),
+                                              const SizedBox(height: 2),
+                                              Text('$start - $end',
+                                                  style: TextStyle(fontSize: 11, color: Colors.black54)),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  )
+                              ],
+                            ),
                           ),
                         );
-                      }),
+                      }).toList(),
                     ),
+                  ),
+
+                  // optional legend at bottom
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _legendDot(Colors.blue, 'New'),
+                      const SizedBox(width: 16),
+                      _legendDot(Colors.orange, 'Follow Up'),
+                    ],
                   ),
                 ],
               ),
@@ -311,167 +301,31 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
     );
   }
 
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  void _openDaySheet(DateTime day, List<AppointmentEvent> dayEvents) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  Widget _countBadge(int count, Color color, String tooltip) {
+    return Tooltip(
+      message: '$tooltip: $count',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: Text(
+          count.toString(),
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.6,
-          minChildSize: 0.3,
-          maxChildSize: 0.95,
-          builder: (_, controller) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 4,
-                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(4)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    DateFormat('EEEE, dd MMMM yyyy').format(day),
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  if (dayEvents.isEmpty)
-                    Expanded(
-                      child: Center(
-                        child: Text('No appointments', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
-                      ),
-                    )
-                  else
-                    Expanded(
-                      child: ListView.separated(
-                        controller: controller,
-                        itemCount: dayEvents.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, idx) {
-                          final e = dayEvents[idx];
-                          final color = _colorForType(e.type);
-                          final timeRange = '${_timeFormat.format(e.start)} - ${_timeFormat.format(e.end)}';
-                          return Material(
-                            elevation: 0,
-                            borderRadius: BorderRadius.circular(12),
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                if (widget.onTapEvent != null) widget.onTapEvent!(e);
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: color.withOpacity(0.06),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: color.withOpacity(0.16)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(e.patientName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                          const SizedBox(height: 6),
-                                          Text(timeRange, style: const TextStyle(color: Colors.black54)),
-                                          const SizedBox(height: 6),
-                                          Text(e.type == 'N' ? 'New Appointment' : 'Follow Up', style: TextStyle(color: color)),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    IconButton(
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                        // callback: user may open appointment details/edit
-                                        if (widget.onTapEvent != null) widget.onTapEvent!(e);
-                                      },
-                                      icon: const Icon(Icons.edit, color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        );
-      },
     );
   }
-}
 
-/// ---------------------------
-/// Example usage with sample data:
-/// ---------------------------
-/// Place this widget inside a Scaffold body, e.g.:
-///
-/// EventsCalendarWidget(
-///   events: sampleEvents,
-///   onTapEvent: (ev) {
-///     // navigate to edit page or show details
-///   },
-/// )
-///
-/// Sample data helper:
-List<AppointmentEvent> sampleEventsForDemo() {
-  final now = DateTime.now();
-  return [
-    AppointmentEvent(
-      id: 'a1',
-      patientName: 'Rama Gutta',
-      start: DateTime(now.year, now.month, 5, 10, 0),
-      end: DateTime(now.year, now.month, 5, 10, 30),
-      type: 'N',
-    ),
-    AppointmentEvent(
-      id: 'a2',
-      patientName: 'Anita Sharma',
-      start: DateTime(now.year, now.month, 5, 11, 0),
-      end: DateTime(now.year, now.month, 5, 11, 30),
-      type: 'F',
-    ),
-    AppointmentEvent(
-      id: 'a3',
-      patientName: 'Vikram Patel',
-      start: DateTime(now.year, now.month, 12, 9, 0),
-      end: DateTime(now.year, now.month, 12, 9, 40),
-      type: 'N',
-    ),
-    AppointmentEvent(
-      id: 'a4',
-      patientName: 'Sita Rao',
-      start: DateTime(now.year, now.month, 12, 10, 0),
-      end: DateTime(now.year, now.month, 12, 10, 45),
-      type: 'F',
-    ),
-    AppointmentEvent(
-      id: 'a5',
-      patientName: 'Dr. Alex',
-      start: DateTime(now.year, now.month, 21, 14, 0),
-      end: DateTime(now.year, now.month, 21, 14, 30),
-      type: 'N',
-    ),
-  ];
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(color: Colors.black87)),
+      ],
+    );
+  }
 }
