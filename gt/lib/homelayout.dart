@@ -1,13 +1,17 @@
+// ---------------------- UPDATED FULL FILE ----------------------
+
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
 
-// Make sure these paths match where you saved the widgets
+// Patient widgets
 import 'package:gt/patient/patientregisterwidget.dart';
 import 'package:gt/patient/patientdetailswidget.dart';
-// wire appointment widgets (paths you specified)
+
+// Appointment widgets
 import 'package:gt/appointment/AppointmentWidget.dart';
 import 'package:gt/appointment/appointmentdetailswidget.dart';
-import 'package:gt/appointment/eventscalendarwidget.dart'; // <-- NEW IMPORT
+import 'package:gt/appointment/patientcalendarwidget.dart';
+import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- NEW IMPORT
 
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
@@ -43,14 +47,13 @@ class HomeLayoutHome extends StatefulWidget {
 class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   int selected = 0;
 
-  // collapsible open flags for groups
   bool patientOpen = true;
   bool appointmentOpen = false;
   bool treatmentOpen = false;
   bool paymentOpen = false;
   bool pharmacyOpen = false;
 
-  String? _route; // null -> dashboard
+  String? _route; // null → dashboard
 
   @override
   Widget build(BuildContext context) {
@@ -64,21 +67,20 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             treatmentOpen: treatmentOpen,
             paymentOpen: paymentOpen,
             pharmacyOpen: pharmacyOpen,
+
             onSelect: (i) {
               setState(() {
                 selected = i;
                 _route = (i == 0) ? 'dashboard' : null;
               });
             },
-            // toggles for groups
+
             onTogglePatient: () => setState(() => patientOpen = !patientOpen),
-            onToggleAppointment: () =>
-                setState(() => appointmentOpen = !appointmentOpen),
+            onToggleAppointment: () => setState(() => appointmentOpen = !appointmentOpen),
             onToggleTreatment: () => setState(() => treatmentOpen = !treatmentOpen),
             onTogglePayment: () => setState(() => paymentOpen = !paymentOpen),
             onTogglePharmacy: () => setState(() => pharmacyOpen = !pharmacyOpen),
 
-            // open sub-tabs (routes)
             onOpenPatientRegister: () => setState(() => _route = 'patient_register'),
             onOpenPatientDetails: () => setState(() => _route = 'patient_details'),
 
@@ -96,58 +98,37 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             onOpenPharmacySub1: () => setState(() => _route = 'pharmacy_sub_tab_1'),
             onOpenPharmacySub2: () => setState(() => _route = 'pharmacy_sub_tab_2'),
           ),
+
+          // MAIN CONTENT AREA
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 0),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                    child: switch (_route) {
-                      'dashboard' => const DashboardWidget(),
-                      'patient_register' => const PatientRegisterWidget(),
-                      'patient_details' => const PatientDetailsWidget(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: switch (_route) {
+                'dashboard' => const DashboardWidget(),
 
-                      // appointment — wired: first sub tab -> Book Appointment (AppointmentWidget)
-                      'appointment_sub_tab_1' =>
-                        const AppointmentWidget(),
+                'patient_register' => const PatientRegisterWidget(),
+                'patient_details' => const PatientDetailsWidget(),
 
-                      // appointment details (wired to AppointmentDetailsWidget)
-                      'appointment_sub_tab_2' =>
-                        const AppointmentDetailsWidget(),
+                // Appointment sub-tabs
+                'appointment_sub_tab_1' => const AppointmentWidget(),
+                'appointment_sub_tab_2' => const AppointmentDetailsWidget(),
+                'appointment_sub_tab_3' => const PatientCalendarWidget(),
+                'appointment_sub_tab_4' => const DoctorCalendarWidget(), // <-- NOW WIRED PROPERLY
 
-                      // patient calendar (3rd sub tab)
-                      'appointment_sub_tab_3' =>
-                        const EventsCalendarWidget(),
+                // Treatment
+                'treatment_sub_tab_1' => const _PlaceholderScaffold(title: 'Treatment — Sub Tab 1'),
+                'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment — Sub Tab 2'),
 
-                      // doctor calendar (4th sub tab) -> simple in-progress placeholder
-                      'appointment_sub_tab_4' =>
-                        const _PlaceholderScaffold(title: 'Doctor Calendar — In progress'),
+                // Payment
+                'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
+                'payment_sub_tab_2' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
 
-                      // treatment placeholders
-                      'treatment_sub_tab_1' =>
-                        const _PlaceholderScaffold(title: 'Treatment — Sub Tab 1'),
-                      'treatment_sub_tab_2' =>
-                        const _PlaceholderScaffold(title: 'Treatment — Sub Tab 2'),
+                // Pharmacy
+                'pharmacy_sub_tab_1' => const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 1'),
+                'pharmacy_sub_tab_2' => const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 2'),
 
-                      // payment placeholders
-                      'payment_sub_tab_1' =>
-                        const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
-                      'payment_sub_tab_2' =>
-                        const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
-
-                      // pharmacy placeholders
-                      'pharmacy_sub_tab_1' =>
-                        const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 1'),
-                      'pharmacy_sub_tab_2' =>
-                        const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 2'),
-
-                      _ => const DashboardWidget(),
-                    },
-                  ),
-                ),
-              ],
+                _ => const DashboardWidget(),
+              },
             ),
           )
         ],
@@ -156,7 +137,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   }
 }
 
-/// Simple placeholder widget used for new tabs while you wire real screens.
+/// Reusable placeholder
 class _PlaceholderScaffold extends StatelessWidget {
   final String title;
   const _PlaceholderScaffold({required this.title});
@@ -177,43 +158,40 @@ class _PlaceholderScaffold extends StatelessWidget {
   }
 }
 
+// ------------------------------------------------------------------------------------
+// SIDEBAR
+// ------------------------------------------------------------------------------------
+
 class _Sidebar extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
 
-  // open flags for groups
   final bool patientOpen;
   final bool appointmentOpen;
   final bool treatmentOpen;
   final bool paymentOpen;
   final bool pharmacyOpen;
 
-  // toggles
   final VoidCallback onTogglePatient;
   final VoidCallback onToggleAppointment;
   final VoidCallback onToggleTreatment;
   final VoidCallback onTogglePayment;
   final VoidCallback onTogglePharmacy;
 
-  // patient sub-tab openers
   final VoidCallback onOpenPatientRegister;
   final VoidCallback onOpenPatientDetails;
 
-  // appointment sub-tab openers
   final VoidCallback onOpenAppointmentSub1;
   final VoidCallback onOpenAppointmentSub2;
   final VoidCallback onOpenAppointmentSub3;
   final VoidCallback onOpenAppointmentSub4;
 
-  // treatment sub-tab openers
   final VoidCallback onOpenTreatmentSub1;
   final VoidCallback onOpenTreatmentSub2;
 
-  // payment sub-tab openers
   final VoidCallback onOpenPaymentSub1;
   final VoidCallback onOpenPaymentSub2;
 
-  // pharmacy sub-tab openers
   final VoidCallback onOpenPharmacySub1;
   final VoidCallback onOpenPharmacySub2;
 
@@ -255,29 +233,21 @@ class _Sidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // BRAND BAR
+
+            // BRAND PANEL
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: const BoxDecoration(color: Color(0xFF0B1220)),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/images/gtlogo.png',
-                    height: 28,
-                    fit: BoxFit.contain,
-                  ),
+                  Image.asset('assets/images/gtlogo.png', height: 28),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Global Dental Clinic',
-                      maxLines: 1,
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
                     ),
                   ),
                 ],
@@ -288,45 +258,26 @@ class _Sidebar extends StatelessWidget {
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF111827),
-                borderRadius: BorderRadius.circular(14),
-              ),
+              decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(14)),
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    radius: 18,
-                    backgroundImage: AssetImage('assets/images/akshara.png'),
-                  ),
+                  const CircleAvatar(radius: 18, backgroundImage: AssetImage('assets/images/akshara.png')),
                   const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Ramesh',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
-                      Row(
-                        children: [
-                          _Dot(color: Color(0xFF22C55E)),
-                          SizedBox(width: 6),
-                          Text('Super Admin',
-                              style: TextStyle(
-                                  color: Color(0xFF9CA3AF), fontSize: 12)),
-                        ],
-                      )
-                    ],
-                  ),
+                  const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Ramesh', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    Row(children: [
+                      _Dot(color: Color(0xFF22C55E)),
+                      SizedBox(width: 6),
+                      Text('Super Admin', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12)),
+                    ])
+                  ]),
                   const Spacer(),
-                  IconButton(
-                      onPressed: () {},
-                      icon:
-                          const Icon(Icons.more_vert, color: Color(0xFF9CA3AF)))
+                  IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert, color: Color(0xFF9CA3AF)))
                 ],
               ),
             ),
 
-            // MENU
+            // MENU SECTIONS
             Expanded(
               child: ListView(
                 children: [
@@ -336,6 +287,7 @@ class _Sidebar extends StatelessWidget {
                     active: selected == 0,
                     onTap: () => onSelect(0),
                   ),
+
                   const SizedBox(height: 6),
 
                   // PATIENT GROUP
@@ -345,14 +297,8 @@ class _Sidebar extends StatelessWidget {
                     open: patientOpen,
                     onToggle: onTogglePatient,
                     children: [
-                      _SideSubItem(
-                        label: 'Register',
-                        onTap: onOpenPatientRegister,
-                      ),
-                      _SideSubItem(
-                        label: 'Details',
-                        onTap: onOpenPatientDetails,
-                      ),
+                      _SideSubItem(label: 'Register', onTap: onOpenPatientRegister),
+                      _SideSubItem(label: 'Details', onTap: onOpenPatientDetails),
                     ],
                   ),
 
@@ -419,13 +365,9 @@ class _Sidebar extends StatelessWidget {
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
-                        Text('Powered by Gutta © 2022',
-                            style: TextStyle(
-                                color: Color(0xFF6B7280), fontSize: 12)),
+                        Text('Powered by Gutta © 2022', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
                         Spacer(),
-                        Text('v 1.1.2',
-                            style: TextStyle(
-                                color: Color(0xFF6B7280), fontSize: 12)),
+                        Text('v 1.1.2', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
                       ],
                     ),
                   ),
@@ -439,6 +381,10 @@ class _Sidebar extends StatelessWidget {
     );
   }
 }
+
+// ------------------------------------------------------------------------------------
+// COMPONENTS (Side items, collapsible, dots)
+// ------------------------------------------------------------------------------------
 
 class _SideItem extends StatelessWidget {
   final IconData icon;
@@ -477,11 +423,7 @@ class _SideItem extends StatelessWidget {
                 Icon(icon, color: Colors.white, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      )),
+                  child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
                 ),
                 if (active)
                   const Icon(Icons.check, size: 16, color: Colors.white70),
@@ -514,7 +456,6 @@ class _Collapsible extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -525,33 +466,23 @@ class _Collapsible extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               onTap: onToggle,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 child: Row(
                   children: [
                     Icon(icon, color: Colors.white, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
+                      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
                     ),
                     if (trailingBadge != null) trailingBadge!,
-                    Icon(
-                      open ? Icons.expand_more : Icons.chevron_right,
-                      color: const Color(0xFF9CA3AF),
-                      size: 20,
-                    ),
+                    Icon(open ? Icons.expand_more : Icons.chevron_right, color: const Color(0xFF9CA3AF)),
                   ],
                 ),
               ),
             ),
           ),
         ),
+
         if (open)
           Padding(
             padding: const EdgeInsets.only(left: 52),
@@ -573,24 +504,20 @@ class _SideSubItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Restored left-aligned layout (small leading spacer + label)
     return Padding(
       padding: const EdgeInsets.only(right: 12, bottom: 8),
       child: Material(
         color: const Color(0xFF111827),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          onTap: onTap,
           borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: const TextStyle(color: Color(0xFFE5E7EB), fontSize: 14),
-                ),
+                Text(label, style: const TextStyle(color: Color(0xFFE5E7EB), fontSize: 14)),
               ],
             ),
           ),
@@ -605,10 +532,6 @@ class _Dot extends StatelessWidget {
   const _Dot({required this.color});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
+    return Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
   }
 }
