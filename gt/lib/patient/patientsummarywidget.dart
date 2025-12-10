@@ -1,4 +1,4 @@
-// lib/appointment/patienthistorywidget.dart
+// lib/appointment/patientsummarywidget.dart
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,7 +6,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// PatientHistoryWidget
+/// PatientSummaryWidget
 ///
 /// Shows an overview of a patient's footprints across the system:
 /// - Previous Visits
@@ -18,14 +18,14 @@ import 'package:intl/intl.dart';
 ///
 /// NOTE: collection names for treatments/followups/payments/medications are assumed.
 /// If your project uses different names, change the collection strings below.
-class PatientHistoryWidget extends StatefulWidget {
-  const PatientHistoryWidget({super.key});
+class PatientSummaryWidget extends StatefulWidget {
+  const PatientSummaryWidget({super.key});
 
   @override
-  State<PatientHistoryWidget> createState() => _PatientHistoryWidgetState();
+  State<PatientSummaryWidget> createState() => _PatientSummaryWidgetState();
 }
 
-class _PatientHistoryWidgetState extends State<PatientHistoryWidget> {
+class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
   final _db = FirebaseFirestore.instance;
 
   // patient search controls
@@ -494,7 +494,7 @@ class _PatientHistoryWidgetState extends State<PatientHistoryWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Patient History", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+                const Text("Patient Summary", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
                 const SizedBox(height: 20),
 
                 // Patient Search

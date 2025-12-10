@@ -1,17 +1,15 @@
-// ---------------------- UPDATED FULL FILE ----------------------
-
+// lib/home_layout_widget.dart
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
 
 // Patient widgets
 import 'package:gt/patient/patientregisterwidget.dart';
 import 'package:gt/patient/patientdetailswidget.dart';
+import 'package:gt/patient/patientsummarywidget.dart'; // <-- Patient Summary
 
 // Appointment widgets
-import 'package:gt/appointment/AppointmentWidget.dart';
-import 'package:gt/appointment/appointmentdetailswidget.dart';
 import 'package:gt/appointment/patientcalendarwidget.dart';
-import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- NEW IMPORT
+import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calendar
 
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
@@ -83,9 +81,8 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
             onOpenPatientRegister: () => setState(() => _route = 'patient_register'),
             onOpenPatientDetails: () => setState(() => _route = 'patient_details'),
+            onOpenPatientHistory: () => setState(() => _route = 'patient_history'), // Patient Summary
 
-            onOpenAppointmentSub1: () => setState(() => _route = 'appointment_sub_tab_1'),
-            onOpenAppointmentSub2: () => setState(() => _route = 'appointment_sub_tab_2'),
             onOpenAppointmentSub3: () => setState(() => _route = 'appointment_sub_tab_3'),
             onOpenAppointmentSub4: () => setState(() => _route = 'appointment_sub_tab_4'),
 
@@ -108,12 +105,11 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
                 'patient_register' => const PatientRegisterWidget(),
                 'patient_details' => const PatientDetailsWidget(),
+                'patient_history' => const PatientSummaryWidget(), // Patient Summary
 
-                // Appointment sub-tabs
-                'appointment_sub_tab_1' => const AppointmentWidget(),
-                'appointment_sub_tab_2' => const AppointmentDetailsWidget(),
+                // Appointment sub-tabs (only patient & doctor calendars remain)
                 'appointment_sub_tab_3' => const PatientCalendarWidget(),
-                'appointment_sub_tab_4' => const DoctorCalendarWidget(), // <-- NOW WIRED PROPERLY
+                'appointment_sub_tab_4' => const DoctorCalendarWidget(),
 
                 // Treatment
                 'treatment_sub_tab_1' => const _PlaceholderScaffold(title: 'Treatment — Sub Tab 1'),
@@ -180,9 +176,8 @@ class _Sidebar extends StatelessWidget {
 
   final VoidCallback onOpenPatientRegister;
   final VoidCallback onOpenPatientDetails;
+  final VoidCallback onOpenPatientHistory; // Patient Summary callback
 
-  final VoidCallback onOpenAppointmentSub1;
-  final VoidCallback onOpenAppointmentSub2;
   final VoidCallback onOpenAppointmentSub3;
   final VoidCallback onOpenAppointmentSub4;
 
@@ -210,8 +205,7 @@ class _Sidebar extends StatelessWidget {
     required this.onTogglePharmacy,
     required this.onOpenPatientRegister,
     required this.onOpenPatientDetails,
-    required this.onOpenAppointmentSub1,
-    required this.onOpenAppointmentSub2,
+    required this.onOpenPatientHistory,
     required this.onOpenAppointmentSub3,
     required this.onOpenAppointmentSub4,
     required this.onOpenTreatmentSub1,
@@ -299,6 +293,7 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       _SideSubItem(label: 'Register', onTap: onOpenPatientRegister),
                       _SideSubItem(label: 'Details', onTap: onOpenPatientDetails),
+                      _SideSubItem(label: 'History', onTap: onOpenPatientHistory), // Patient Summary
                     ],
                   ),
 
@@ -311,8 +306,7 @@ class _Sidebar extends StatelessWidget {
                     open: appointmentOpen,
                     onToggle: onToggleAppointment,
                     children: [
-                      _SideSubItem(label: 'Book Appointment', onTap: onOpenAppointmentSub1),
-                      _SideSubItem(label: 'Appointment Details', onTap: onOpenAppointmentSub2),
+                      // Removed Book Appointment & Appointment Details sub-tabs.
                       _SideSubItem(label: 'Patient Calendar', onTap: onOpenAppointmentSub3),
                       _SideSubItem(label: 'Doctor Calendar', onTap: onOpenAppointmentSub4),
                     ],
