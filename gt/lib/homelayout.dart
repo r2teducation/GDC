@@ -4,6 +4,9 @@ import 'package:gt/dashboard.dart';
 // Make sure these paths match where you saved the widgets
 import 'package:gt/patient/patientregisterwidget.dart';
 import 'package:gt/patient/patientdetailswidget.dart';
+// wire appointment widgets (paths you specified)
+import 'package:gt/appointment/AppointmentWidget.dart';
+import 'package:gt/appointment/appointmentdetailswidget.dart';
 
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
@@ -103,11 +106,13 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                       'patient_register' => const PatientRegisterWidget(),
                       'patient_details' => const PatientDetailsWidget(),
 
-                      // appointment placeholders
+                      // appointment — wired: first sub tab -> Book Appointment (AppointmentWidget)
                       'appointment_sub_tab_1' =>
-                        const _PlaceholderScaffold(title: 'Appointment — Sub Tab 1'),
+                        const AppointmentWidget(),
+
+                      // appointment details (wired to AppointmentDetailsWidget)
                       'appointment_sub_tab_2' =>
-                        const _PlaceholderScaffold(title: 'Appointment — Sub Tab 2'),
+                        const AppointmentDetailsWidget(),
 
                       // treatment placeholders
                       'treatment_sub_tab_1' =>
@@ -345,8 +350,8 @@ class _Sidebar extends StatelessWidget {
                     open: appointmentOpen,
                     onToggle: onToggleAppointment,
                     children: [
-                      _SideSubItem(label: 'appointment_sub_tab_1', onTap: onOpenAppointmentSub1),
-                      _SideSubItem(label: 'appointment_sub_tab_2', onTap: onOpenAppointmentSub2),
+                      _SideSubItem(label: 'Book Appointment', onTap: onOpenAppointmentSub1),
+                      _SideSubItem(label: 'Appointment Details', onTap: onOpenAppointmentSub2),
                     ],
                   ),
 
