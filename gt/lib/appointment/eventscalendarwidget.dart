@@ -7,11 +7,13 @@ class CalendarEvent {
   final TimeOfDay start;
   final TimeOfDay end;
   final bool isFollowUp; // false -> New (blue), true -> Follow Up (orange)
+  final String notes; // appointment notes
   CalendarEvent({
     required this.patientName,
     required this.start,
     required this.end,
     this.isFollowUp = false,
+    this.notes = '',
   });
 }
 
@@ -47,18 +49,21 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
           start: const TimeOfDay(hour: 10, minute: 0),
           end: const TimeOfDay(hour: 10, minute: 30),
           isFollowUp: false,
+          notes: 'First visit — checkup',
         ),
         CalendarEvent(
           patientName: 'Sunita T.',
           start: const TimeOfDay(hour: 11, minute: 0),
           end: const TimeOfDay(hour: 11, minute: 30),
           isFollowUp: true,
+          notes: 'Review filling',
         ),
         CalendarEvent(
           patientName: 'Vikas P.',
           start: const TimeOfDay(hour: 14, minute: 0),
           end: const TimeOfDay(hour: 14, minute: 30),
           isFollowUp: true,
+          notes: 'Root canal stage 2',
         ),
       ],
       key2: [
@@ -67,6 +72,7 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
           start: const TimeOfDay(hour: 9, minute: 30),
           end: const TimeOfDay(hour: 10, minute: 0),
           isFollowUp: false,
+          notes: 'Teeth cleaning',
         ),
       ],
     };
@@ -100,6 +106,167 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
 
   bool _isSameDate(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// Show a centered dialog listing that day's appointments.
+  Future<void> _showDayDetails(BuildContext ctx, DateTime day) async {
+    final key = _ymd(day);
+    final events = (_sampleEvents[key] ?? []).toList()
+      ..sort((a, b) {
+        final aMinutes = a.start.hour * 60 + a.start.minute;
+        final bMinutes = b.start.hour * 60 + b.start.minute;
+        return aMinutes.compareTo(bMinutes);
+      });
+
+    final media = MediaQuery.of(ctx);
+    final maxWidth = media.size.width * 0.7;
+    final maxHeight = media.size.height * 0.7;
+
+    await showDialog(
+      context: ctx,
+      builder: (dctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DateFormat('EEEE, d MMMM yyyy').format(day),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(dctx).pop(),
+                            icon: const Icon(Icons.close),
+                          )
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // body
+                    Flexible(
+                      child: events.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Center(
+                                child: Text(
+                                  'No appointments scheduled.',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(12),
+                              shrinkWrap: true,
+                              itemCount: events.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              itemBuilder: (context, idx) {
+                                final ev = events[idx];
+                                final color = ev.isFollowUp ? Colors.orange : Colors.blue;
+                                final timeLabel = '${ev.start.format(context)} — ${ev.end.format(context)}';
+                                return Material(
+                                  elevation: 0,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        // left time column - narrow
+                                        Container(
+                                          width: 120,
+                                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.12),
+                                            borderRadius: const BorderRadius.only(
+                                              topLeft: Radius.circular(10),
+                                              bottomLeft: Radius.circular(10),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                timeLabel,
+                                                style: TextStyle(fontSize: 12, color: Colors.black87),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        // right name & notes column
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  ev.patientName,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: color.shade700,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  ev.notes.isNotEmpty ? ev.notes : 'No notes',
+                                                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 12),
+                    // optional footer (close)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dctx).pop(),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,18 +318,18 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
 
         const SizedBox(height: 8),
 
-        // weekday labels
+        // weekday labels — Sun and Sat in red
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
-            children: const [
-              Expanded(child: Center(child: Text('Sun'))),
-              Expanded(child: Center(child: Text('Mon'))),
-              Expanded(child: Center(child: Text('Tue'))),
-              Expanded(child: Center(child: Text('Wed'))),
-              Expanded(child: Center(child: Text('Thu'))),
-              Expanded(child: Center(child: Text('Fri'))),
-              Expanded(child: Center(child: Text('Sat'))),
+            children: [
+              Expanded(child: Center(child: Text('Sun', style: TextStyle(color: Colors.red.shade700)))),
+              const Expanded(child: Center(child: Text('Mon'))),
+              const Expanded(child: Center(child: Text('Tue'))),
+              const Expanded(child: Center(child: Text('Wed'))),
+              const Expanded(child: Center(child: Text('Thu'))),
+              const Expanded(child: Center(child: Text('Fri'))),
+              Expanded(child: Center(child: Text('Sat', style: TextStyle(color: Colors.red.shade700)))),
             ],
           ),
         ),
@@ -198,83 +365,86 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
 
                         return Padding(
                           padding: const EdgeInsets.all(6.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: isCurrentMonth ? Colors.white : Colors.grey.shade100,
-                              border: Border.all(
-                                color: _isSameDate(d, DateTime.now())
-                                    ? const Color(0xFF16A34A)
-                                    : Colors.transparent,
-                                width: _isSameDate(d, DateTime.now()) ? 2 : 0,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // top row: day number and counts (right-aligned)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        _dayFormat.format(d),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: isCurrentMonth ? Colors.black87 : Colors.grey,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      // badges for counts (small)
-                                      if (newCount > 0)
-                                        _countBadge(newCount, Colors.blue, 'New'),
-                                      const SizedBox(width: 6),
-                                      if (followUpCount > 0)
-                                        _countBadge(followUpCount, Colors.orange, 'Follow Up'),
-                                    ],
-                                  ),
+                          child: GestureDetector(
+                            onTap: () => _showDayDetails(context, d),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: isCurrentMonth ? Colors.white : Colors.grey.shade100,
+                                border: Border.all(
+                                  color: _isSameDate(d, DateTime.now())
+                                      ? const Color(0xFF16A34A)
+                                      : Colors.transparent,
+                                  width: _isSameDate(d, DateTime.now()) ? 2 : 0,
                                 ),
-                                const SizedBox(height: 4),
-
-                                // events list (scroll inside cell if many)
-                                if (events.isEmpty)
-                                  const Expanded(child: SizedBox.shrink())
-                                else
-                                  Expanded(
-                                    child: ListView.builder(
-                                      itemCount: events.length,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                                      itemBuilder: (context, idx) {
-                                        final ev = events[idx];
-                                        final color = ev.isFollowUp ? Colors.orange : Colors.blue;
-                                        // patient name bold + time range
-                                        final start = ev.start.format(context);
-                                        final end = ev.end.format(context);
-                                        return Container(
-                                          margin: const EdgeInsets.only(bottom: 6),
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: color.withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // top row: day number and counts (right-aligned)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          _dayFormat.format(d),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: isCurrentMonth ? Colors.black87 : Colors.grey,
                                           ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(ev.patientName,
-                                                  style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: color.shade700)),
-                                              const SizedBox(height: 2),
-                                              Text('$start - $end',
-                                                  style: TextStyle(fontSize: 11, color: Colors.black54)),
-                                            ],
-                                          ),
-                                        );
-                                      },
+                                        ),
+                                        const Spacer(),
+                                        // badges for counts (small)
+                                        if (newCount > 0)
+                                          _countBadge(newCount, Colors.blue, 'New'),
+                                        const SizedBox(width: 6),
+                                        if (followUpCount > 0)
+                                          _countBadge(followUpCount, Colors.orange, 'Follow Up'),
+                                      ],
                                     ),
-                                  )
-                              ],
+                                  ),
+                                  const SizedBox(height: 4),
+
+                                  // events list (scroll inside cell if many)
+                                  if (events.isEmpty)
+                                    const Expanded(child: SizedBox.shrink())
+                                  else
+                                    Expanded(
+                                      child: ListView.builder(
+                                        itemCount: events.length,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        itemBuilder: (context, idx) {
+                                          final ev = events[idx];
+                                          final color = ev.isFollowUp ? Colors.orange : Colors.blue;
+                                          // patient name bold + time range
+                                          final start = ev.start.format(context);
+                                          final end = ev.end.format(context);
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 6),
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: color.withOpacity(0.12),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(ev.patientName,
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: color.shade700)),
+                                                const SizedBox(height: 2),
+                                                Text('$start - $end',
+                                                    style: TextStyle(fontSize: 11, color: Colors.black54)),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    )
+                                ],
+                              ),
                             ),
                           ),
                         );
