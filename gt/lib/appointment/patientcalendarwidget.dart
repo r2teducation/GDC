@@ -56,6 +56,10 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   final int _slotEndHour = 17; // include up to 17:30 if step 30
   final int _slotMinutesStep = 30; // 30-minute slots
 
+  // Firestore collection name for doctor busy/unavailable entries.
+  // If your DoctorCalendar writes to a different collection name, change this.
+  final String _doctorCollectionName = 'doctor_unavailability';
+
   @override
   void initState() {
     super.initState();
@@ -340,9 +344,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               child: const Text('Close')),
                           const SizedBox(width: 8),
                           ElevatedButton(
-                            onPressed: () {
+                            onPressed: () async {
                               Navigator.of(dctx).pop();
-                              _showCreateForDate(ctx, day);
+                              // BEFORE opening create dialog, gather doctor busy slots and patient slots
+                              // We fetch doctor busy slots inside _showCreateForDate, so just call it.
+                              await _showCreateForDate(ctx, day);
                             },
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF16A34A),
@@ -362,7 +368,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
-  // Build occupied time slots
+  // Build occupied time slots (patient appointments only)
   Set<String> _occupiedSlotsFromMapForDate(DateTime date) {
     final key = _ymd(date);
     final list = _eventsMap[key] ?? [];
@@ -370,6 +376,79 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       for (final ev in list)
         '${ev.start.hour.toString().padLeft(2, '0')}:${ev.start.minute.toString().padLeft(2, '0')}'
     };
+  }
+
+  // Fetch doctor busy/unavailable slots for a given date.
+  // Reads documents from _doctorCollectionName and tries to extract a Timestamp/DateTime
+  // from several likely field names. Returns set of 'HH:mm' strings.
+  Future<Set<String>> _fetchDoctorBusySlotsForDate(DateTime date) async {
+    final Set<String> result = {};
+    try {
+      final snap = await _db.collection(_doctorCollectionName).get();
+
+      // candidate timestamp field names we try to parse (extendable)
+      final List<String> _possibleTimestampFields = [
+        'dateTime',
+        'start',
+        'startDateTime',
+        'unavailableDateTime',
+        'unavailableAt',
+        'from',
+        'start_at',
+        'date', // maybe a date-only field; skip if not time
+      ];
+
+      final startOfDay = DateTime(date.year, date.month, date.day, 0, 0);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        DateTime? dt;
+        // attempt to find first usable timestamp field
+        for (final f in _possibleTimestampFields) {
+          if (!data.containsKey(f)) continue;
+          final v = data[f];
+          if (v == null) continue;
+          if (v is Timestamp) {
+            dt = v.toDate().toLocal();
+            break;
+          } else if (v is DateTime) {
+            dt = v.toLocal();
+            break;
+          } else if (v is String) {
+            // try parse ISO string
+            try {
+              dt = DateTime.parse(v).toLocal();
+              break;
+            } catch (_) {}
+          }
+        }
+
+        // fallback: if doc has both 'start' and 'end' as timestamps or simple 'date' + 'time' fields,
+        // or if document stored 'appointmentDateTime' key (same as appointments)
+        if (dt == null && data.containsKey('appointmentDateTime')) {
+          final v = data['appointmentDateTime'];
+          if (v is Timestamp) dt = v.toDate().toLocal();
+          else if (v is DateTime) dt = v.toLocal();
+        }
+
+        if (dt == null) {
+          // no usable timestamp in this doc — skip it
+          continue;
+        }
+
+        // only include entries belonging to requested day
+        if (dt.isBefore(startOfDay) || dt.isAfter(endOfDay)) continue;
+
+        // convert to hh:mm and add
+        final hhmm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        result.add(hhmm);
+      }
+    } catch (e) {
+      debugPrint('Failed to load doctor busy slots: $e');
+      // On error we return empty set (do not block booking), and optionally show a snackbar when UI calls this
+    }
+    return result;
   }
 
   List<TimeOfDay> _generateTimeSlots() {
@@ -435,14 +514,22 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
-  // Create appointment dialog
+  // Create appointment dialog — now considers doctor busy slots as well
   Future<void> _showCreateForDate(BuildContext ctx, DateTime date) async {
     String? selectedPatientId;
     TimeOfDay? selectedTime;
     String appointmentType = 'N';
     final TextEditingController notesCtrl = TextEditingController();
 
-    final occupied = _occupiedSlotsFromMapForDate(date);
+    // Gather occupied patient slots (from in-memory events) and doctor busy slots from Firestore
+    final patientOccupied = _occupiedSlotsFromMapForDate(date);
+    Set<String> doctorOccupied = {};
+    try {
+      doctorOccupied = await _fetchDoctorBusySlotsForDate(date);
+    } catch (e) {
+      // ignore — helper already handles errors
+    }
+    final occupied = {...patientOccupied, ...doctorOccupied};
 
     await showDialog(
       context: ctx,
@@ -477,9 +564,20 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
 
             final hhmm =
                 '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
-            if (_occupiedSlotsFromMapForDate(date).contains(hhmm)) {
+
+            // Re-check current state: patient map + fresh doctor busy slots
+            final currentlyOccupiedPatients = _occupiedSlotsFromMapForDate(date);
+            Set<String> currentlyDoctorOccupied = {};
+            try {
+              currentlyDoctorOccupied = await _fetchDoctorBusySlotsForDate(date);
+            } catch (e) {
+              // ignore
+            }
+            final currentlyOccupied = {...currentlyOccupiedPatients, ...currentlyDoctorOccupied};
+
+            if (currentlyOccupied.contains(hhmm)) {
               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                  content: Text('Selected slot already taken.')));
+                  content: Text('Selected slot already taken. Please pick another.')));
               return;
             }
 
