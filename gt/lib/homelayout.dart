@@ -85,6 +85,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             onOpenAppointmentSub1: () => setState(() => _route = 'appointment_sub_tab_1'),
             onOpenAppointmentSub2: () => setState(() => _route = 'appointment_sub_tab_2'),
             onOpenAppointmentSub3: () => setState(() => _route = 'appointment_sub_tab_3'),
+            onOpenAppointmentSub4: () => setState(() => _route = 'appointment_sub_tab_4'),
 
             onOpenTreatmentSub1: () => setState(() => _route = 'treatment_sub_tab_1'),
             onOpenTreatmentSub2: () => setState(() => _route = 'treatment_sub_tab_2'),
@@ -116,9 +117,13 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                       'appointment_sub_tab_2' =>
                         const AppointmentDetailsWidget(),
 
-                      // calendar (3rd sub tab)
+                      // patient calendar (3rd sub tab)
                       'appointment_sub_tab_3' =>
                         const EventsCalendarWidget(),
+
+                      // doctor calendar (4th sub tab) -> simple in-progress placeholder
+                      'appointment_sub_tab_4' =>
+                        const _PlaceholderScaffold(title: 'Doctor Calendar — In progress'),
 
                       // treatment placeholders
                       'treatment_sub_tab_1' =>
@@ -198,6 +203,7 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onOpenAppointmentSub1;
   final VoidCallback onOpenAppointmentSub2;
   final VoidCallback onOpenAppointmentSub3;
+  final VoidCallback onOpenAppointmentSub4;
 
   // treatment sub-tab openers
   final VoidCallback onOpenTreatmentSub1;
@@ -229,6 +235,7 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenAppointmentSub1,
     required this.onOpenAppointmentSub2,
     required this.onOpenAppointmentSub3,
+    required this.onOpenAppointmentSub4,
     required this.onOpenTreatmentSub1,
     required this.onOpenTreatmentSub2,
     required this.onOpenPaymentSub1,
@@ -360,7 +367,8 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       _SideSubItem(label: 'Book Appointment', onTap: onOpenAppointmentSub1),
                       _SideSubItem(label: 'Appointment Details', onTap: onOpenAppointmentSub2),
-                      _SideSubItem(label: 'Calendar', onTap: onOpenAppointmentSub3),
+                      _SideSubItem(label: 'Patient Calendar', onTap: onOpenAppointmentSub3),
+                      _SideSubItem(label: 'Doctor Calendar', onTap: onOpenAppointmentSub4),
                     ],
                   ),
 
