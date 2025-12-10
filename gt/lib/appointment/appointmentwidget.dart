@@ -37,8 +37,17 @@ class _AppointmentWidgetState extends State<AppointmentWidget> {
   // Show appointment-type validation only after user attempts submit
   bool _submittedAttempted = false;
 
-  // Date formatter — clearer format requested: "10-December-2025 Wednesday 8:21 AM"
-  final DateFormat _displayFormatter = DateFormat('dd-MMMM-yyyy EEEE h:mm a');
+  // Date formatter — new requested format:
+  // "Wednesday, 10 December 2025  8:50 AM"
+  final DateFormat _displayFormatter = DateFormat('EEEE, d MMMM yyyy  h:mm a');
+
+  // Cache of occupied slots per dateKey (yyyy-MM-dd) -> set of 'HH:mm'
+  final Map<String, Set<String>> _occupiedSlotsCache = {};
+
+  // Time slot generation config
+  final int _slotStartHour = 9; // start at 9:00
+  final int _slotEndHour = 17; // last slot will include end hour (17:30)
+  final int _slotMinutesStep = 30; // 30-minute slots
 
   @override
   void initState() {
@@ -116,7 +125,126 @@ class _AppointmentWidgetState extends State<AppointmentWidget> {
     );
   }
 
-  // Pick date then time, store combined DateTime and format display text
+  // Helper to form a dateKey for cache and queries: yyyy-MM-dd
+  String _dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // Fetch occupied slots for given date (from Firestore) and cache them.
+  // Returns set of 'HH:mm' strings for occupied start times.
+  Future<Set<String>> _fetchOccupiedSlotsForDate(DateTime date) async {
+    final key = _dateKey(date);
+    if (_occupiedSlotsCache.containsKey(key)) {
+      return _occupiedSlotsCache[key]!;
+    }
+
+    final startOfDay = DateTime(date.year, date.month, date.day, 0, 0);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+    try {
+      final snap = await _db
+          .collection('appointments')
+          .where('appointmentDateTime',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('appointmentDateTime',
+              isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+          .get();
+
+      final Set<String> occupied = {};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ts = data['appointmentDateTime'] as Timestamp?;
+        if (ts == null) continue;
+        final dt = ts.toDate().toLocal();
+        // store hh:mm
+        final hhmm =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        occupied.add(hhmm);
+      }
+
+      _occupiedSlotsCache[key] = occupied;
+      return occupied;
+    } catch (e) {
+      // on error, return empty set (so we don't block booking); also show snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to load occupied slots: $e')));
+      }
+      return {};
+    }
+  }
+
+  // Generate time slots for a date using start/end and step; returns list of TimeOfDay
+  List<TimeOfDay> _generateTimeSlots() {
+    final List<TimeOfDay> slots = [];
+    for (int h = _slotStartHour; h <= _slotEndHour; h++) {
+      for (int m = 0; m < 60; m += _slotMinutesStep) {
+        // If last hour and m goes beyond end (e.g., endHour=17 and we allow 17:30), still include.
+        // We'll cap by computing slotTime <= endHour+59min
+        slots.add(TimeOfDay(hour: h, minute: m));
+      }
+    }
+    return slots;
+  }
+
+  // Show a dialog with selectable available slots; disabled ones show as such.
+  // Returns selected TimeOfDay or null.
+  Future<TimeOfDay?> _showTimeSlotPicker(
+      BuildContext ctx, DateTime forDate, Set<String> occupied) async {
+    final slots = _generateTimeSlots();
+    // Filter out any slots where hour==endHour and minute > 0 if you want to prevent beyond end
+    // For now we show all generated.
+
+    return await showDialog<TimeOfDay>(
+      context: ctx,
+      builder: (dctx) {
+        return AlertDialog(
+          title: Text('Select time — ${DateFormat('d MMM yyyy').format(forDate)}'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: slots.map((s) {
+                  final hhmm =
+                      '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
+                  final taken = occupied.contains(hhmm);
+                  final label = s.format(ctx);
+                  return SizedBox(
+                    width: 110,
+                    child: ElevatedButton(
+                      onPressed: taken
+                          ? null
+                          : () {
+                              Navigator.of(dctx).pop(s);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: taken ? Colors.grey.shade300 : Colors.white,
+                        foregroundColor: taken ? Colors.grey.shade600 : Colors.black87,
+                        elevation: taken ? 0 : 2,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dctx).pop(null), child: const Text('Cancel')),
+          ],
+        );
+      },
+    );
+  }
+
+  // Pick date then show custom time-slot chooser (fetch occupied slots first)
   Future<void> _pickAppointmentDateTime() async {
     final now = DateTime.now();
     final initialDate = _appointmentDateTime ?? now;
@@ -128,23 +256,27 @@ class _AppointmentWidgetState extends State<AppointmentWidget> {
     );
     if (pickedDate == null) return;
 
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_appointmentDateTime ?? now),
-    );
-    if (pickedTime == null) return;
+    // fetch occupied slots for this day
+    final occupied = await _fetchOccupiedSlotsForDate(pickedDate);
+
+    // show slot picker
+    final selectedTime = await _showTimeSlotPicker(context, pickedDate, occupied);
+
+    if (selectedTime == null) {
+      // user cancelled time selection
+      return;
+    }
 
     final combined = DateTime(
       pickedDate.year,
       pickedDate.month,
       pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
+      selectedTime.hour,
+      selectedTime.minute,
     );
 
     setState(() {
       _appointmentDateTime = combined;
-      // format as "10-December-2025 Wednesday 8:21 AM"
       _appointmentDateTimeCtrl.text = _displayFormatter.format(combined);
     });
   }
@@ -204,6 +336,10 @@ class _AppointmentWidgetState extends State<AppointmentWidget> {
       };
 
       await _db.collection('appointments').add(data);
+
+      // Invalidate cache for that date so subsequent bookings reflect new occupancy
+      final key = _dateKey(_appointmentDateTime!);
+      _occupiedSlotsCache.remove(key);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Appointment created')),
@@ -372,7 +508,7 @@ class _AppointmentWidgetState extends State<AppointmentWidget> {
                     readOnly: true,
                     controller: _appointmentDateTimeCtrl,
                     onTap: _pickAppointmentDateTime,
-                    decoration: _dec("DD-MMMM-YYYY dddd h:mm AM/PM"),
+                    decoration: _dec("EEEE, d MMMM yyyy  h:mm a"),
                     validator: _validateDateTime,
                   ),
 

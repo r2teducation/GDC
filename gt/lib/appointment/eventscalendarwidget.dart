@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -17,7 +20,7 @@ class CalendarEvent {
   });
 }
 
-/// Events calendar widget
+/// Events calendar widget (wired to Firestore)
 class EventsCalendarWidget extends StatefulWidget {
   const EventsCalendarWidget({super.key});
 
@@ -30,52 +33,120 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
   final DateFormat _headerFormatter = DateFormat('MMMM yyyy'); // e.g. December 2025
   final DateFormat _dayFormat = DateFormat('d');
 
-  // sample events map keyed by yyyy-mm-dd string for simplicity
-  // Replace this with Firestore-loaded events in your app
-  Map<String, List<CalendarEvent>> _sampleEvents = {};
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // Map keyed by yyyy-mm-dd -> list of events
+  Map<String, List<CalendarEvent>> _eventsMap = {};
+
+  // simple cache of patientId -> display name
+  final Map<String, String> _patientsMap = {};
+
+  // subscription to appointments snapshot
+  StreamSubscription<QuerySnapshot>? _appointmentsSub;
 
   @override
   void initState() {
     super.initState();
+    _loadPatientsThenListenAppointments();
+  }
 
-    // sample data for demo — two events on a couple of dates
-    final today = DateTime.now();
-    final key1 = _ymd(DateTime(today.year, today.month, 10));
-    final key2 = _ymd(DateTime(today.year, today.month, 17));
-    _sampleEvents = {
-      key1: [
-        CalendarEvent(
-          patientName: 'Rama K.',
-          start: const TimeOfDay(hour: 10, minute: 0),
-          end: const TimeOfDay(hour: 10, minute: 30),
-          isFollowUp: false,
-          notes: 'First visit — checkup',
-        ),
-        CalendarEvent(
-          patientName: 'Sunita T.',
-          start: const TimeOfDay(hour: 11, minute: 0),
-          end: const TimeOfDay(hour: 11, minute: 30),
-          isFollowUp: true,
-          notes: 'Review filling',
-        ),
-        CalendarEvent(
-          patientName: 'Vikas P.',
-          start: const TimeOfDay(hour: 14, minute: 0),
-          end: const TimeOfDay(hour: 14, minute: 30),
-          isFollowUp: true,
-          notes: 'Root canal stage 2',
-        ),
-      ],
-      key2: [
-        CalendarEvent(
-          patientName: 'Amit R.',
-          start: const TimeOfDay(hour: 9, minute: 30),
-          end: const TimeOfDay(hour: 10, minute: 0),
-          isFollowUp: false,
-          notes: 'Teeth cleaning',
-        ),
-      ],
-    };
+  @override
+  void dispose() {
+    _appointmentsSub?.cancel();
+    super.dispose();
+  }
+
+  /// Load patient names once (cache), then start listening to appointments.
+  Future<void> _loadPatientsThenListenAppointments() async {
+    try {
+      final patientsSnap = await _db.collection('patients').get();
+      for (final doc in patientsSnap.docs) {
+        final data = doc.data();
+        final id = (data['patientId'] ?? doc.id).toString();
+        final fullName = (data['fullName'] ??
+                '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
+            .toString()
+            .trim();
+        _patientsMap[id] = fullName.isNotEmpty ? fullName : id;
+      }
+    } catch (e) {
+      // silently continue — patient names will fallback to id
+      debugPrint('Failed to load patients: $e');
+    }
+
+    // Now listen to appointment changes
+    _appointmentsSub = _db
+        .collection('appointments')
+        .orderBy('appointmentDateTime')
+        .snapshots()
+        .listen((snap) {
+      _buildEventsFromSnapshot(snap);
+    }, onError: (err) {
+      debugPrint('Appointments snapshot error: $err');
+    });
+  }
+
+  /// Construct internal events map from Firestore snapshot
+  void _buildEventsFromSnapshot(QuerySnapshot snap) {
+    final Map<String, List<CalendarEvent>> map = {};
+
+    for (final doc in snap.docs) {
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // appointmentDateTime must be a Timestamp
+        final ts = data['appointmentDateTime'];
+        if (ts == null) continue;
+        DateTime dt;
+        if (ts is Timestamp) {
+          dt = ts.toDate().toLocal();
+        } else if (ts is DateTime) {
+          dt = ts.toLocal();
+        } else {
+          // unsupported type
+          continue;
+        }
+
+        final patientId = (data['patientId'] ?? '').toString();
+        final patientName = _patientsMap[patientId] ?? patientId;
+
+        final appointmentType = (data['appointmentType'] ?? '').toString();
+        final isFollowUp = appointmentType.toUpperCase() == 'F';
+
+        final notes = (data['notes'] ?? '').toString();
+
+        // Use a default duration of 30 minutes; adjust if you store duration.
+        final startTod = TimeOfDay(hour: dt.hour, minute: dt.minute);
+        final endDt = dt.add(const Duration(minutes: 30));
+        final endTod = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
+
+        final ev = CalendarEvent(
+          patientName: patientName,
+          start: startTod,
+          end: endTod,
+          isFollowUp: isFollowUp,
+          notes: notes,
+        );
+
+        final key = _ymd(dt);
+        map.putIfAbsent(key, () => []).add(ev);
+      } catch (e) {
+        debugPrint('Skipping appointment doc ${doc.id} due to error: $e');
+      }
+    }
+
+    // sort events for each date by start time
+    for (final list in map.values) {
+      list.sort((a, b) {
+        final aMin = a.start.hour * 60 + a.start.minute;
+        final bMin = b.start.hour * 60 + b.start.minute;
+        return aMin.compareTo(bMin);
+      });
+    }
+
+    setState(() {
+      _eventsMap = map;
+    });
   }
 
   /// Helper to produce an easy key for a date
@@ -110,7 +181,7 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
   /// Show a centered dialog listing that day's appointments.
   Future<void> _showDayDetails(BuildContext ctx, DateTime day) async {
     final key = _ymd(day);
-    final events = (_sampleEvents[key] ?? []).toList()
+    final events = (_eventsMap[key] ?? []).toList()
       ..sort((a, b) {
         final aMinutes = a.start.hour * 60 + a.start.minute;
         final bMinutes = b.start.hour * 60 + b.start.minute;
@@ -149,7 +220,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                           Expanded(
                             child: Text(
                               DateFormat('EEEE, d MMMM yyyy').format(day),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                             ),
                           ),
                           IconButton(
@@ -180,7 +252,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                               itemBuilder: (context, idx) {
                                 final ev = events[idx];
                                 final color = ev.isFollowUp ? Colors.orange : Colors.blue;
-                                final timeLabel = '${ev.start.format(context)} — ${ev.end.format(context)}';
+                                final timeLabel =
+                                    '${ev.start.format(context)} — ${ev.end.format(context)}';
                                 return Material(
                                   elevation: 0,
                                   borderRadius: BorderRadius.circular(10),
@@ -188,14 +261,19 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(10),
-                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                      boxShadow: [
+                                        BoxShadow(
+                                            color: Colors.black.withOpacity(0.03),
+                                            blurRadius: 6)
+                                      ],
                                     ),
                                     child: Row(
                                       children: [
                                         // left time column - narrow
                                         Container(
                                           width: 120,
-                                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 12, horizontal: 12),
                                           decoration: BoxDecoration(
                                             color: color.withOpacity(0.12),
                                             borderRadius: const BorderRadius.only(
@@ -208,7 +286,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                                             children: [
                                               Text(
                                                 timeLabel,
-                                                style: TextStyle(fontSize: 12, color: Colors.black87),
+                                                style:
+                                                    TextStyle(fontSize: 12, color: Colors.black87),
                                               ),
                                             ],
                                           ),
@@ -216,7 +295,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                                         // right name & notes column
                                         Expanded(
                                           child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 12),
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
@@ -231,7 +311,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                                                 const SizedBox(height: 6),
                                                 Text(
                                                   ev.notes.isNotEmpty ? ev.notes : 'No notes',
-                                                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                                                  style: TextStyle(
+                                                      fontSize: 12, color: Colors.black54),
                                                 ),
                                               ],
                                             ),
@@ -318,18 +399,52 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
 
         const SizedBox(height: 8),
 
-        // weekday labels — Sun and Sat in red
+        // weekday labels — Sun and Sat in red, all bold
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
-              Expanded(child: Center(child: Text('Sun', style: TextStyle(color: Colors.red.shade700)))),
-              const Expanded(child: Center(child: Text('Mon'))),
-              const Expanded(child: Center(child: Text('Tue'))),
-              const Expanded(child: Center(child: Text('Wed'))),
-              const Expanded(child: Center(child: Text('Thu'))),
-              const Expanded(child: Center(child: Text('Fri'))),
-              Expanded(child: Center(child: Text('Sat', style: TextStyle(color: Colors.red.shade700)))),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Sun',
+                    style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('Mon', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('Tue', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('Wed', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('Thu', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const Expanded(
+                child: Center(
+                  child: Text('Fri', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Sat',
+                    style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -354,7 +469,7 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                       physics: const ClampingScrollPhysics(),
                       children: days.map((d) {
                         final ymd = _ymd(d);
-                        final events = _sampleEvents[ymd] ?? [];
+                        final events = _eventsMap[ymd] ?? [];
                         final isCurrentMonth = d.month == _focusedMonth.month;
 
                         // compute counts
@@ -389,7 +504,8 @@ class _EventsCalendarWidgetState extends State<EventsCalendarWidget> {
                                         Text(
                                           _dayFormat.format(d),
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w700,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
                                             color: isCurrentMonth ? Colors.black87 : Colors.grey,
                                           ),
                                         ),

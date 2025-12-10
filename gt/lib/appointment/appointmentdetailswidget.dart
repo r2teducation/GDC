@@ -35,9 +35,9 @@ class _AppointmentDetailsWidgetState extends State<AppointmentDetailsWidget> {
   final TextEditingController _editingNotesCtrl = TextEditingController();
   bool _editSaving = false;
 
-  // date formatter
+  // date formatter — changed to "Wednesday, 10 December 2025  8:50 AM"
   final DateFormat _displayFormatter =
-      DateFormat('dd-MMMM-yyyy EEEE h:mm a'); // e.g. 10-December-2025 Wednesday 8:21 AM
+      DateFormat('EEEE, d MMMM yyyy  h:mm a'); // two spaces before time
 
   @override
   void initState() {
@@ -538,7 +538,7 @@ class _AppointmentDetailsWidgetState extends State<AppointmentDetailsWidget> {
           controller: _editingAppointmentDateTimeCtrl,
           readOnly: true,
           onTap: _pickEditAppointmentDateTime,
-          decoration: _dec("DD-MMMM-YYYY EEEE h:mm AM/PM"),
+          decoration: _dec("Wednesday, 10 December 2025  h:mm AM/PM"),
         ),
         const SizedBox(height: 16),
 
