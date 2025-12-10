@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:gt/dashboard.dart';
-import 'package:gt/patient/profilewidget.dart';
-import 'package:gt/patient/visitswidget.dart';
 
-class AutoCareApp extends StatelessWidget {
-  const AutoCareApp({super.key});
+// Make sure these paths match where you saved the widgets
+import 'package:gt/patient/patientregisterwidget.dart';
+import 'package:gt/patient/patientdetailswidget.dart';
+
+class HomeLayoutWidget extends StatelessWidget {
+  const HomeLayoutWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -23,20 +25,26 @@ class AutoCareApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AutoCareHome(),
+      home: const HomeLayoutHome(),
     );
   }
 }
 
-class AutoCareHome extends StatefulWidget {
-  const AutoCareHome({super.key});
+class HomeLayoutHome extends StatefulWidget {
+  const HomeLayoutHome({super.key});
   @override
-  State<AutoCareHome> createState() => _AutoCareHomeState();
+  State<HomeLayoutHome> createState() => _HomeLayoutHomeState();
 }
 
-class _AutoCareHomeState extends State<AutoCareHome> {
+class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   int selected = 0;
-  bool tab4Open = true;
+
+  // collapsible open flags for groups
+  bool patientOpen = true;
+  bool appointmentOpen = false;
+  bool treatmentOpen = false;
+  bool paymentOpen = false;
+  bool pharmacyOpen = false;
 
   String? _route; // null -> dashboard
 
@@ -47,16 +55,40 @@ class _AutoCareHomeState extends State<AutoCareHome> {
         children: [
           _Sidebar(
             selected: selected,
-            tab4Open: tab4Open,
+            patientOpen: patientOpen,
+            appointmentOpen: appointmentOpen,
+            treatmentOpen: treatmentOpen,
+            paymentOpen: paymentOpen,
+            pharmacyOpen: pharmacyOpen,
             onSelect: (i) {
               setState(() {
                 selected = i;
                 _route = (i == 0) ? 'dashboard' : null;
               });
             },
-            onToggle4: () => setState(() => tab4Open = !tab4Open),
-            onOpenSub4_1: () => setState(() => _route = 'sub4_1'),
-            onOpenSub4_2: () => setState(() => _route = 'sub4_2'),
+            // toggles for groups
+            onTogglePatient: () => setState(() => patientOpen = !patientOpen),
+            onToggleAppointment: () =>
+                setState(() => appointmentOpen = !appointmentOpen),
+            onToggleTreatment: () => setState(() => treatmentOpen = !treatmentOpen),
+            onTogglePayment: () => setState(() => paymentOpen = !paymentOpen),
+            onTogglePharmacy: () => setState(() => pharmacyOpen = !pharmacyOpen),
+
+            // open sub-tabs (routes)
+            onOpenPatientRegister: () => setState(() => _route = 'patient_register'),
+            onOpenPatientDetails: () => setState(() => _route = 'patient_details'),
+
+            onOpenAppointmentSub1: () => setState(() => _route = 'appointment_sub_tab_1'),
+            onOpenAppointmentSub2: () => setState(() => _route = 'appointment_sub_tab_2'),
+
+            onOpenTreatmentSub1: () => setState(() => _route = 'treatment_sub_tab_1'),
+            onOpenTreatmentSub2: () => setState(() => _route = 'treatment_sub_tab_2'),
+
+            onOpenPaymentSub1: () => setState(() => _route = 'payment_sub_tab_1'),
+            onOpenPaymentSub2: () => setState(() => _route = 'payment_sub_tab_2'),
+
+            onOpenPharmacySub1: () => setState(() => _route = 'pharmacy_sub_tab_1'),
+            onOpenPharmacySub2: () => setState(() => _route = 'pharmacy_sub_tab_2'),
           ),
           Expanded(
             child: Column(
@@ -68,8 +100,33 @@ class _AutoCareHomeState extends State<AutoCareHome> {
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                     child: switch (_route) {
                       'dashboard' => const DashboardWidget(),
-                      'sub4_1' => const ProfileWidget(),
-                      'sub4_2' => const VisitsWidget(), // 👈 link Visits tab
+                      'patient_register' => const PatientRegisterWidget(),
+                      'patient_details' => const PatientDetailsWidget(),
+
+                      // appointment placeholders
+                      'appointment_sub_tab_1' =>
+                        const _PlaceholderScaffold(title: 'Appointment — Sub Tab 1'),
+                      'appointment_sub_tab_2' =>
+                        const _PlaceholderScaffold(title: 'Appointment — Sub Tab 2'),
+
+                      // treatment placeholders
+                      'treatment_sub_tab_1' =>
+                        const _PlaceholderScaffold(title: 'Treatment — Sub Tab 1'),
+                      'treatment_sub_tab_2' =>
+                        const _PlaceholderScaffold(title: 'Treatment — Sub Tab 2'),
+
+                      // payment placeholders
+                      'payment_sub_tab_1' =>
+                        const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
+                      'payment_sub_tab_2' =>
+                        const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
+
+                      // pharmacy placeholders
+                      'pharmacy_sub_tab_1' =>
+                        const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 1'),
+                      'pharmacy_sub_tab_2' =>
+                        const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 2'),
+
                       _ => const DashboardWidget(),
                     },
                   ),
@@ -83,22 +140,88 @@ class _AutoCareHomeState extends State<AutoCareHome> {
   }
 }
 
+/// Simple placeholder widget used for new tabs while you wire real screens.
+class _PlaceholderScaffold extends StatelessWidget {
+  final String title;
+  const _PlaceholderScaffold({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12)],
+      ),
+      child: Center(
+        child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
 class _Sidebar extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
 
-  final bool tab4Open;
-  final VoidCallback onToggle4;
-  final VoidCallback onOpenSub4_1;
-  final VoidCallback onOpenSub4_2;
+  // open flags for groups
+  final bool patientOpen;
+  final bool appointmentOpen;
+  final bool treatmentOpen;
+  final bool paymentOpen;
+  final bool pharmacyOpen;
+
+  // toggles
+  final VoidCallback onTogglePatient;
+  final VoidCallback onToggleAppointment;
+  final VoidCallback onToggleTreatment;
+  final VoidCallback onTogglePayment;
+  final VoidCallback onTogglePharmacy;
+
+  // patient sub-tab openers
+  final VoidCallback onOpenPatientRegister;
+  final VoidCallback onOpenPatientDetails;
+
+  // appointment sub-tab openers
+  final VoidCallback onOpenAppointmentSub1;
+  final VoidCallback onOpenAppointmentSub2;
+
+  // treatment sub-tab openers
+  final VoidCallback onOpenTreatmentSub1;
+  final VoidCallback onOpenTreatmentSub2;
+
+  // payment sub-tab openers
+  final VoidCallback onOpenPaymentSub1;
+  final VoidCallback onOpenPaymentSub2;
+
+  // pharmacy sub-tab openers
+  final VoidCallback onOpenPharmacySub1;
+  final VoidCallback onOpenPharmacySub2;
 
   const _Sidebar({
     required this.selected,
     required this.onSelect,
-    required this.tab4Open,
-    required this.onToggle4,
-    required this.onOpenSub4_1,
-    required this.onOpenSub4_2,
+    required this.patientOpen,
+    required this.appointmentOpen,
+    required this.treatmentOpen,
+    required this.paymentOpen,
+    required this.pharmacyOpen,
+    required this.onTogglePatient,
+    required this.onToggleAppointment,
+    required this.onToggleTreatment,
+    required this.onTogglePayment,
+    required this.onTogglePharmacy,
+    required this.onOpenPatientRegister,
+    required this.onOpenPatientDetails,
+    required this.onOpenAppointmentSub1,
+    required this.onOpenAppointmentSub2,
+    required this.onOpenTreatmentSub1,
+    required this.onOpenTreatmentSub2,
+    required this.onOpenPaymentSub1,
+    required this.onOpenPaymentSub2,
+    required this.onOpenPharmacySub1,
+    required this.onOpenPharmacySub2,
   });
 
   @override
@@ -195,25 +318,77 @@ class _Sidebar extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
 
-                  // PATIENT GROUP ONLY
+                  // PATIENT GROUP
                   _Collapsible(
                     icon: Icons.people_alt_outlined,
                     label: 'Patient',
-                    open: tab4Open,
-                    onToggle: onToggle4,
+                    open: patientOpen,
+                    onToggle: onTogglePatient,
                     children: [
                       _SideSubItem(
-                        label: 'Profile',
-                        onTap: onOpenSub4_1,
+                        label: 'Register',
+                        onTap: onOpenPatientRegister,
                       ),
                       _SideSubItem(
-                        label: 'Visits',
-                        onTap: onOpenSub4_2,
+                        label: 'Details',
+                        onTap: onOpenPatientDetails,
                       ),
-                      _SideSubItem(label: 'Medical', onTap: () {}),
-                      _SideSubItem(label: 'Dental', onTap: () {}),
-                      _SideSubItem(label: 'Examination', onTap: () {}),
-                      _SideSubItem(label: 'Records', onTap: () {}),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // APPOINTMENT GROUP
+                  _Collapsible(
+                    icon: Icons.event_note_outlined,
+                    label: 'Appointment',
+                    open: appointmentOpen,
+                    onToggle: onToggleAppointment,
+                    children: [
+                      _SideSubItem(label: 'appointment_sub_tab_1', onTap: onOpenAppointmentSub1),
+                      _SideSubItem(label: 'appointment_sub_tab_2', onTap: onOpenAppointmentSub2),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // TREATMENT GROUP
+                  _Collapsible(
+                    icon: Icons.medical_services_outlined,
+                    label: 'Treatment',
+                    open: treatmentOpen,
+                    onToggle: onToggleTreatment,
+                    children: [
+                      _SideSubItem(label: 'treatment_sub_tab_1', onTap: onOpenTreatmentSub1),
+                      _SideSubItem(label: 'treatment_sub_tab_2', onTap: onOpenTreatmentSub2),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // PAYMENT GROUP
+                  _Collapsible(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Payment',
+                    open: paymentOpen,
+                    onToggle: onTogglePayment,
+                    children: [
+                      _SideSubItem(label: 'payment_sub_tab_1', onTap: onOpenPaymentSub1),
+                      _SideSubItem(label: 'payment_sub_tab_2', onTap: onOpenPaymentSub2),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // PHARMACY GROUP
+                  _Collapsible(
+                    icon: Icons.local_pharmacy_outlined,
+                    label: 'Pharmacy',
+                    open: pharmacyOpen,
+                    onToggle: onTogglePharmacy,
+                    children: [
+                      _SideSubItem(label: 'pharmacy_sub_tab_1', onTap: onOpenPharmacySub1),
+                      _SideSubItem(label: 'pharmacy_sub_tab_2', onTap: onOpenPharmacySub2),
                     ],
                   ),
 

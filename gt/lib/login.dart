@@ -22,7 +22,7 @@ void _login() {
     if (email == 'a@gmail.com' && password == 'a') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const AutoCareApp()),
+        MaterialPageRoute(builder: (context) => const HomeLayoutWidget()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
