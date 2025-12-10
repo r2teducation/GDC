@@ -22,6 +22,14 @@ class CalendarEvent {
   });
 }
 
+/// Doctor busy entry model
+class DoctorBusyEntry {
+  final TimeOfDay time;
+  final String notes;
+  final String id;
+  DoctorBusyEntry({required this.time, required this.notes, required this.id});
+}
+
 /// Patient calendar widget (wired to Firestore)
 class PatientCalendarWidget extends StatefulWidget {
   const PatientCalendarWidget({super.key});
@@ -40,6 +48,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   // Map keyed by yyyy-mm-dd -> list of events
   Map<String, List<CalendarEvent>> _eventsMap = {};
 
+  // Map keyed by yyyy-mm-dd -> list of doctor busy entries
+  Map<String, List<DoctorBusyEntry>> _doctorBusyMap = {};
+
   // simple cache of patientId -> display name
   final Map<String, String> _patientsMap = {};
 
@@ -48,8 +59,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   List<_PatientOption> _patientOptions = [];
   final TextEditingController _createSearchCtrl = TextEditingController();
 
-  // subscription to appointments snapshot
+  // subscriptions
   StreamSubscription<QuerySnapshot>? _appointmentsSub;
+  StreamSubscription<QuerySnapshot>? _doctorBusySub;
 
   // Time slot generation config (same as AppointmentWidget)
   final int _slotStartHour = 9; // start at 9:00
@@ -63,18 +75,19 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   @override
   void initState() {
     super.initState();
-    _loadPatientsThenListenAppointments();
+    _loadPatientsThenListenAppointmentsAndDoctorBusy();
   }
 
   @override
   void dispose() {
     _appointmentsSub?.cancel();
+    _doctorBusySub?.cancel();
     _createSearchCtrl.dispose();
     super.dispose();
   }
 
-  /// Load patient names once (cache), then start listening to appointments.
-  Future<void> _loadPatientsThenListenAppointments() async {
+  /// Load patient names once (cache), then start listening to appointments and doctor busy docs.
+  Future<void> _loadPatientsThenListenAppointmentsAndDoctorBusy() async {
     try {
       final patientsSnap = await _db.collection('patients').orderBy('patientId').get();
       final List<_PatientOption> opts = [];
@@ -102,7 +115,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       debugPrint('Failed to load patients: $e');
     }
 
-    // Now listen to appointment changes
+    // Listen to appointment changes
     _appointmentsSub = _db
         .collection('appointments')
         .orderBy('appointmentDateTime')
@@ -111,6 +124,13 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       _buildEventsFromSnapshot(snap);
     }, onError: (err) {
       debugPrint('Appointments snapshot error: $err');
+    });
+
+    // Listen to doctor busy/unavailability changes
+    _doctorBusySub = _db.collection(_doctorCollectionName).snapshots().listen((snap) {
+      _buildDoctorBusyFromSnapshot(snap);
+    }, onError: (err) {
+      debugPrint('Doctor busy snapshot error: $err');
     });
   }
 
@@ -175,6 +195,83 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     });
   }
 
+  /// Build doctor busy map from snapshot
+  void _buildDoctorBusyFromSnapshot(QuerySnapshot snap) {
+    final Map<String, List<DoctorBusyEntry>> map = {};
+    for (final doc in snap.docs) {
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+        final DateTime? dt = _extractDateTimeFromDocMap(data);
+        if (dt == null) continue;
+        final key = _ymd(dt);
+        final tod = TimeOfDay(hour: dt.hour, minute: dt.minute);
+        final notes = (data['notes'] ?? data['note'] ?? '').toString();
+        final entry = DoctorBusyEntry(time: tod, notes: notes, id: doc.id);
+        map.putIfAbsent(key, () => []).add(entry);
+      } catch (e) {
+        debugPrint('Skipping doctor busy doc ${doc.id} due to error: $e');
+      }
+    }
+
+    // sort entries by time
+    for (final list in map.values) {
+      list.sort((a, b) {
+        final aMin = a.time.hour * 60 + a.time.minute;
+        final bMin = b.time.hour * 60 + b.time.minute;
+        return aMin.compareTo(bMin);
+      });
+    }
+
+    setState(() {
+      _doctorBusyMap = map;
+    });
+  }
+
+  /// Helper: try multiple fields to extract a DateTime from a document map.
+  DateTime? _extractDateTimeFromDocMap(Map<String, dynamic> data) {
+    final List<String> candidates = [
+      'dateTime',
+      'start',
+      'startDateTime',
+      'unavailableDateTime',
+      'unavailableAt',
+      'from',
+      'start_at',
+      'appointmentDateTime',
+      'date',
+      'time',
+    ];
+
+    for (final f in candidates) {
+      if (!data.containsKey(f)) continue;
+      final v = data[f];
+      if (v == null) continue;
+      if (v is Timestamp) return v.toDate().toLocal();
+      if (v is DateTime) return v.toLocal();
+      if (v is String) {
+        try {
+          return DateTime.parse(v).toLocal();
+        } catch (_) {
+          // ignore parse error
+        }
+      }
+    }
+
+    // As a fallback, if the doc stored separate 'date' and 'time' string fields, try to combine.
+    if (data.containsKey('date') && data.containsKey('time')) {
+      final d = data['date'];
+      final t = data['time'];
+      if (d is String && t is String) {
+        try {
+          final dt = DateTime.parse('$d $t');
+          return dt.toLocal();
+        } catch (_) {}
+      }
+    }
+
+    return null;
+  }
+
   /// date key helper
   String _ymd(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -201,7 +298,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   bool _isSameDate(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// Day details popup
+  /// Day details popup — now shows appointments then doctor busy hours
   Future<void> _showDayDetails(BuildContext ctx, DateTime day) async {
     final key = _ymd(day);
     final events = (_eventsMap[key] ?? []).toList()
@@ -210,6 +307,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         final bM = b.start.hour * 60 + b.start.minute;
         return aM.compareTo(bM);
       });
+
+    final busy = (_doctorBusyMap[key] ?? []).toList();
 
     final media = MediaQuery.of(ctx);
     final maxWidth = media.size.width * 0.7;
@@ -251,86 +350,125 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                       ),
                     ),
                     const Divider(height: 1),
-                    // Body
+                    // Body: appointments then doctor busy
                     Flexible(
-                      child: events.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(20),
-                                child: Text('No appointments scheduled.',
-                                    style: TextStyle(color: Colors.grey[600])),
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            children: [
+                              // Appointments
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('Appointments', style: TextStyle(fontWeight: FontWeight.w700)),
                               ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.all(12),
-                              itemCount: events.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 10),
-                              itemBuilder: (context, idx) {
-                                final ev = events[idx];
-                                final color = ev.isFollowUp ? Colors.orange : Colors.blue;
-                                final timeLabel =
-                                    '${ev.start.format(context)} — ${ev.end.format(context)}';
+                              const SizedBox(height: 8),
+                              if (events.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('No appointments scheduled.', style: TextStyle(color: Colors.grey[600])),
+                                )
+                              else
+                                Column(
+                                  children: events.map((ev) {
+                                    final color = ev.isFollowUp ? Colors.orange : Colors.blue;
+                                    final timeLabel = '${ev.start.format(ctx)} — ${ev.end.format(ctx)}';
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 120,
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: color.withOpacity(0.12),
+                                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                                            ),
+                                            child: Text(timeLabel, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                          ),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(12),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(ev.patientName, style: TextStyle(fontWeight: FontWeight.w700, color: color.shade700)),
+                                                  const SizedBox(height: 6),
+                                                  Text(ev.notes.isNotEmpty ? ev.notes : 'No notes', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
 
-                                return Material(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.03),
-                                          blurRadius: 6,
-                                        )
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        // Time column
-                                        Container(
-                                          width: 120,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 12, horizontal: 12),
-                                          decoration: BoxDecoration(
-                                            color: color.withOpacity(0.12),
-                                            borderRadius: const BorderRadius.only(
-                                              topLeft: Radius.circular(10),
-                                              bottomLeft: Radius.circular(10),
+                              const SizedBox(height: 12),
+                              const Divider(),
+                              const SizedBox(height: 8),
+
+                              // Doctor busy section
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('Doctor busy hours', style: TextStyle(fontWeight: FontWeight.w700)),
+                              ),
+                              const SizedBox(height: 8),
+                              if (busy.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('No busy hours logged.', style: TextStyle(color: Colors.grey[600])),
+                                )
+                              else
+                                Column(
+                                  children: busy.map((b) {
+                                    final timeLabel = b.time.format(ctx);
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 120,
+                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.withOpacity(0.12),
+                                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                                            ),
+                                            child: Text(timeLabel, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                          ),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(12),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text('Doctor busy', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.red.shade700)),
+                                                  const SizedBox(height: 6),
+                                                  Text(b.notes.isNotEmpty ? b.notes : 'No notes', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                          child: Text(timeLabel,
-                                              style: const TextStyle(
-                                                  fontSize: 12, color: Colors.black87)),
-                                        ),
-                                        // Details column
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(ev.patientName,
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w700,
-                                                      color: color.shade700,
-                                                      fontSize: 14,
-                                                    )),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  ev.notes.isNotEmpty ? ev.notes : 'No notes',
-                                                  style: const TextStyle(
-                                                      fontSize: 12, color: Colors.black54),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // Footer
@@ -346,8 +484,6 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                           ElevatedButton(
                             onPressed: () async {
                               Navigator.of(dctx).pop();
-                              // BEFORE opening create dialog, gather doctor busy slots and patient slots
-                              // We fetch doctor busy slots inside _showCreateForDate, so just call it.
                               await _showCreateForDate(ctx, day);
                             },
                             style: ElevatedButton.styleFrom(
@@ -378,77 +514,14 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     };
   }
 
-  // Fetch doctor busy/unavailable slots for a given date.
-  // Reads documents from _doctorCollectionName and tries to extract a Timestamp/DateTime
-  // from several likely field names. Returns set of 'HH:mm' strings.
-  Future<Set<String>> _fetchDoctorBusySlotsForDate(DateTime date) async {
-    final Set<String> result = {};
-    try {
-      final snap = await _db.collection(_doctorCollectionName).get();
-
-      // candidate timestamp field names we try to parse (extendable)
-      final List<String> _possibleTimestampFields = [
-        'dateTime',
-        'start',
-        'startDateTime',
-        'unavailableDateTime',
-        'unavailableAt',
-        'from',
-        'start_at',
-        'date', // maybe a date-only field; skip if not time
-      ];
-
-      final startOfDay = DateTime(date.year, date.month, date.day, 0, 0);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        DateTime? dt;
-        // attempt to find first usable timestamp field
-        for (final f in _possibleTimestampFields) {
-          if (!data.containsKey(f)) continue;
-          final v = data[f];
-          if (v == null) continue;
-          if (v is Timestamp) {
-            dt = v.toDate().toLocal();
-            break;
-          } else if (v is DateTime) {
-            dt = v.toLocal();
-            break;
-          } else if (v is String) {
-            // try parse ISO string
-            try {
-              dt = DateTime.parse(v).toLocal();
-              break;
-            } catch (_) {}
-          }
-        }
-
-        // fallback: if doc has both 'start' and 'end' as timestamps or simple 'date' + 'time' fields,
-        // or if document stored 'appointmentDateTime' key (same as appointments)
-        if (dt == null && data.containsKey('appointmentDateTime')) {
-          final v = data['appointmentDateTime'];
-          if (v is Timestamp) dt = v.toDate().toLocal();
-          else if (v is DateTime) dt = v.toLocal();
-        }
-
-        if (dt == null) {
-          // no usable timestamp in this doc — skip it
-          continue;
-        }
-
-        // only include entries belonging to requested day
-        if (dt.isBefore(startOfDay) || dt.isAfter(endOfDay)) continue;
-
-        // convert to hh:mm and add
-        final hhmm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-        result.add(hhmm);
-      }
-    } catch (e) {
-      debugPrint('Failed to load doctor busy slots: $e');
-      // On error we return empty set (do not block booking), and optionally show a snackbar when UI calls this
-    }
-    return result;
+  // Build doctor occupied slots (from in-memory map)
+  Set<String> _doctorOccupiedSlotsFromMapForDate(DateTime date) {
+    final key = _ymd(date);
+    final list = _doctorBusyMap[key] ?? [];
+    return {
+      for (final b in list)
+        '${b.time.hour.toString().padLeft(2, '0')}:${b.time.minute.toString().padLeft(2, '0')}'
+    };
   }
 
   List<TimeOfDay> _generateTimeSlots() {
@@ -514,21 +587,16 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
-  // Create appointment dialog — now considers doctor busy slots as well
+  // Create appointment dialog — now considers doctor busy slots from in-memory map
   Future<void> _showCreateForDate(BuildContext ctx, DateTime date) async {
     String? selectedPatientId;
     TimeOfDay? selectedTime;
     String appointmentType = 'N';
     final TextEditingController notesCtrl = TextEditingController();
 
-    // Gather occupied patient slots (from in-memory events) and doctor busy slots from Firestore
+    // Gather occupied patient slots (from in-memory events) and doctor busy slots from in-memory map
     final patientOccupied = _occupiedSlotsFromMapForDate(date);
-    Set<String> doctorOccupied = {};
-    try {
-      doctorOccupied = await _fetchDoctorBusySlotsForDate(date);
-    } catch (e) {
-      // ignore — helper already handles errors
-    }
+    final doctorOccupied = _doctorOccupiedSlotsFromMapForDate(date);
     final occupied = {...patientOccupied, ...doctorOccupied};
 
     await showDialog(
@@ -565,14 +633,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
             final hhmm =
                 '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
-            // Re-check current state: patient map + fresh doctor busy slots
+            // Re-check current state: patient map + latest doctor busy map (both maintained by snapshots)
             final currentlyOccupiedPatients = _occupiedSlotsFromMapForDate(date);
-            Set<String> currentlyDoctorOccupied = {};
-            try {
-              currentlyDoctorOccupied = await _fetchDoctorBusySlotsForDate(date);
-            } catch (e) {
-              // ignore
-            }
+            final currentlyDoctorOccupied = _doctorOccupiedSlotsFromMapForDate(date);
             final currentlyOccupied = {...currentlyOccupiedPatients, ...currentlyDoctorOccupied};
 
             if (currentlyOccupied.contains(hhmm)) {
@@ -738,6 +801,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               events.where((e) => e.isFollowUp == false).length;
                           final int followUpCount =
                               events.where((e) => e.isFollowUp == true).length;
+                          final int doctorCount = (_doctorBusyMap[key] ?? []).length;
 
                           return Row(
                             children: [
@@ -746,6 +810,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               const SizedBox(width: 6),
                               if (followUpCount > 0)
                                 _countBadge(followUpCount, Colors.orange, 'Follow Up'),
+                              const SizedBox(width: 6),
+                              if (doctorCount > 0)
+                                _countBadge(doctorCount, Colors.red, 'Doctor Busy'),
                             ],
                           );
                         })
@@ -936,12 +1003,14 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                       children: days.map((d) {
                         final ymd = _ymd(d);
                         final events = _eventsMap[ymd] ?? [];
+                        final busy = _doctorBusyMap[ymd] ?? [];
                         final bool isCurrentMonth = d.month == _focusedMonth.month;
 
                         final int newCount =
                             events.where((e) => e.isFollowUp == false).length;
                         final int followUpCount =
                             events.where((e) => e.isFollowUp == true).length;
+                        final int doctorCount = busy.length;
 
                         return Padding(
                           padding: const EdgeInsets.all(6.0),
@@ -960,10 +1029,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                 ),
                               ),
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  // top row: day number and counts (right-aligned)
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                     child: Row(
                                       children: [
                                         Text(_dayFormat.format(d),
@@ -974,58 +1044,68 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                                     ? Colors.black87
                                                     : Colors.grey)),
                                         const Spacer(),
-                                        if (newCount > 0)
-                                          _countBadge(newCount, Colors.blue, 'New'),
+                                        if (newCount > 0) _countBadge(newCount, Colors.blue, 'New'),
                                         const SizedBox(width: 6),
-                                        if (followUpCount > 0)
-                                          _countBadge(
-                                              followUpCount, Colors.orange, 'Follow Up'),
+                                        if (followUpCount > 0) _countBadge(followUpCount, Colors.orange, 'Follow Up'),
+                                        const SizedBox(width: 6),
+                                        if (doctorCount > 0) _countBadge(doctorCount, Colors.red, 'Doctor Busy'),
                                       ],
                                     ),
                                   ),
                                   const SizedBox(height: 4),
 
-                                  if (events.isEmpty)
+                                  // events list (scroll inside cell if many)
+                                  if (events.isEmpty && busy.isEmpty)
                                     const Expanded(child: SizedBox.shrink())
                                   else
                                     Expanded(
-                                      child: ListView.builder(
-                                        padding:
-                                            const EdgeInsets.symmetric(horizontal: 8),
-                                        itemCount: events.length,
-                                        itemBuilder: (context, idx) {
-                                          final ev = events[idx];
-                                          final color =
-                                              ev.isFollowUp ? Colors.orange : Colors.blue;
-                                          final start = ev.start.format(context);
-                                          final end = ev.end.format(context);
+                                      child: ListView(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        children: [
+                                          // show appointments
+                                          ...events.map((ev) {
+                                            final color = ev.isFollowUp ? Colors.orange : Colors.blue;
+                                            final start = ev.start.format(context);
+                                            final end = ev.end.format(context);
+                                            return Container(
+                                              margin: const EdgeInsets.only(bottom: 6),
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: color.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(ev.patientName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color.shade700)),
+                                                  const SizedBox(height: 2),
+                                                  Text('$start - $end', style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
 
-                                          return Container(
-                                            margin:
-                                                const EdgeInsets.only(bottom: 6),
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: color.withOpacity(0.12),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(ev.patientName,
-                                                    style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: color.shade700)),
-                                                Text('$start - $end',
-                                                    style: const TextStyle(
-                                                        fontSize: 11,
-                                                        color: Colors.black54)),
-                                              ],
-                                            ),
-                                          );
-                                        },
+                                          // show doctor busy entries (compact)
+                                          ...busy.map((b) {
+                                            final t = b.time.format(context);
+                                            return Container(
+                                              margin: const EdgeInsets.only(bottom: 6),
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text('Doctor busy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.red.shade700)),
+                                                  const SizedBox(height: 2),
+                                                  Text(t, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ],
                                       ),
                                     )
                                 ],
@@ -1043,8 +1123,10 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _legendDot(Colors.blue, 'New'),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       _legendDot(Colors.orange, 'Follow Up'),
+                      const SizedBox(width: 12),
+                      _legendDot(Colors.red, 'Doctor Busy'),
                     ],
                   ),
                 ],
@@ -1064,11 +1146,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Text(
           count.toString(),
-          style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -1077,11 +1159,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   Widget _legendDot(Color color, String label) {
     return Row(
       children: [
-        Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-                color: color, borderRadius: BorderRadius.circular(4))),
+        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
         const SizedBox(width: 8),
         Text(label, style: const TextStyle(color: Colors.black87)),
       ],
