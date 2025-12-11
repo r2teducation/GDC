@@ -15,6 +15,9 @@ import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calenda
 import 'package:gt/treatment/createtreatmentwidget.dart'; // <-- CreateTreatmentWidget
 import 'package:gt/treatment/createfollowupwidget.dart'; // <-- CreateFollowUpWidget (new)
 
+// Pharmacy: Medicine Stock
+import 'package:gt/pharmacy/medicinestockwidget.dart'; // <-- MedicineStockWidget
+
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
 
@@ -90,12 +93,16 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             onOpenAppointmentSub3: () => setState(() => _route = 'appointment_sub_tab_3'),
             onOpenAppointmentSub4: () => setState(() => _route = 'appointment_sub_tab_4'),
 
+            // Treatment sub-tabs (now 4)
             onOpenTreatmentSub1: () => setState(() => _route = 'treatment_sub_tab_1'),
             onOpenTreatmentSub2: () => setState(() => _route = 'treatment_sub_tab_2'),
+            onOpenTreatmentSub3: () => setState(() => _route = 'treatment_sub_tab_3'),
+            onOpenTreatmentSub4: () => setState(() => _route = 'treatment_sub_tab_4'),
 
             onOpenPaymentSub1: () => setState(() => _route = 'payment_sub_tab_1'),
             onOpenPaymentSub2: () => setState(() => _route = 'payment_sub_tab_2'),
 
+            // Pharmacy: only one sub-tab remains (Medicine Stock)
             onOpenPharmacySub1: () => setState(() => _route = 'pharmacy_sub_tab_1'),
             onOpenPharmacySub2: () => setState(() => _route = 'pharmacy_sub_tab_2'),
           ),
@@ -116,18 +123,24 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                 'appointment_sub_tab_4' => const DoctorCalendarWidget(),
 
                 // Treatment
-                // Replaced treatment_sub_tab_1 with CreateTreatmentWidget
+                // treatment_sub_tab_1 => Treatment (CreateTreatmentWidget)
                 'treatment_sub_tab_1' => const CreateTreatmentWidget(),
-                // Replaced treatment_sub_tab_2 with CreateFollowUpWidget (Follow Up)
-                'treatment_sub_tab_2' => const CreateFollowUpWidget(),
+                // treatment_sub_tab_2 => Treatment Details (placeholder)
+                'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment Details — in progress'),
+                // treatment_sub_tab_3 => Follow Up (CreateFollowUpWidget)
+                'treatment_sub_tab_3' => const CreateFollowUpWidget(),
+                // treatment_sub_tab_4 => Follow Up Details (placeholder)
+                'treatment_sub_tab_4' => const _PlaceholderScaffold(title: 'Follow Up Details — in progress'),
 
                 // Payment
                 'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
                 'payment_sub_tab_2' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
 
                 // Pharmacy
-                'pharmacy_sub_tab_1' => const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 1'),
-                'pharmacy_sub_tab_2' => const _PlaceholderScaffold(title: 'Pharmacy — Sub Tab 2'),
+                // wired to MedicineStockWidget and label changed in sidebar
+                'pharmacy_sub_tab_1' => const MedicineStockWidget(),
+
+                // note: pharmacy_sub_tab_2 intentionally removed
 
                 _ => const DashboardWidget(),
               },
@@ -187,8 +200,11 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onOpenAppointmentSub3;
   final VoidCallback onOpenAppointmentSub4;
 
+  // now includes 4 treatment callbacks
   final VoidCallback onOpenTreatmentSub1;
   final VoidCallback onOpenTreatmentSub2;
+  final VoidCallback onOpenTreatmentSub3;
+  final VoidCallback onOpenTreatmentSub4;
 
   final VoidCallback onOpenPaymentSub1;
   final VoidCallback onOpenPaymentSub2;
@@ -216,6 +232,8 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenAppointmentSub4,
     required this.onOpenTreatmentSub1,
     required this.onOpenTreatmentSub2,
+    required this.onOpenTreatmentSub3,
+    required this.onOpenTreatmentSub4,
     required this.onOpenPaymentSub1,
     required this.onOpenPaymentSub2,
     required this.onOpenPharmacySub1,
@@ -328,8 +346,10 @@ class _Sidebar extends StatelessWidget {
                     onToggle: onToggleTreatment,
                     children: [
                       // Friendly names for sub-items
-                      _SideSubItem(label: 'Create Treatment', onTap: onOpenTreatmentSub1),
-                      _SideSubItem(label: 'Follow Up', onTap: onOpenTreatmentSub2),
+                      _SideSubItem(label: 'Treatment', onTap: onOpenTreatmentSub1),
+                      _SideSubItem(label: 'Treatment Details', onTap: onOpenTreatmentSub2),
+                      _SideSubItem(label: 'Follow Up', onTap: onOpenTreatmentSub3),
+                      _SideSubItem(label: 'Follow Up Details', onTap: onOpenTreatmentSub4),
                     ],
                   ),
 
@@ -356,8 +376,9 @@ class _Sidebar extends StatelessWidget {
                     open: pharmacyOpen,
                     onToggle: onTogglePharmacy,
                     children: [
-                      _SideSubItem(label: 'pharmacy_sub_tab_1', onTap: onOpenPharmacySub1),
-                      _SideSubItem(label: 'pharmacy_sub_tab_2', onTap: onOpenPharmacySub2),
+                      // renamed and wired to MedicineStockWidget
+                      _SideSubItem(label: 'Medicine Stock', onTap: onOpenPharmacySub1),
+                      // pharmacy_sub_tab_2 removed
                     ],
                   ),
 
