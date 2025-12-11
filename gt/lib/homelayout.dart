@@ -52,6 +52,7 @@ class HomeLayoutHome extends StatefulWidget {
 class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   int selected = 0;
 
+  // Patient module should be uncollapsed by default
   bool patientOpen = true;
   bool appointmentOpen = false;
   bool treatmentOpen = false;
@@ -104,46 +105,51 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
             // Pharmacy: only one sub-tab remains (Medicine Stock)
             onOpenPharmacySub1: () => setState(() => _route = 'pharmacy_sub_tab_1'),
-            onOpenPharmacySub2: () => setState(() => _route = 'pharmacy_sub_tab_2'),
           ),
 
           // MAIN CONTENT AREA
           Expanded(
+            // keep padding as before, but align content to top so inner widgets render from top
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-              child: switch (_route) {
-                'dashboard' => const DashboardWidget(),
+              child: Align(
+                alignment: Alignment.topCenter,
+                // Wrap switch result in a SizedBox to allow child widgets to control width (they usually use ConstrainedBox)
+                child: SizedBox(
+                  width: double.infinity,
+                  child: switch (_route) {
+                    'dashboard' => const DashboardWidget(),
 
-                'patient_register' => const PatientRegisterWidget(),
-                'patient_details' => const PatientDetailsWidget(),
-                'patient_history' => const PatientSummaryWidget(), // Patient Summary
+                    'patient_register' => const PatientRegisterWidget(),
+                    'patient_details' => const PatientDetailsWidget(),
+                    'patient_history' => const PatientSummaryWidget(), // Patient Summary
 
-                // Appointment sub-tabs (only patient & doctor calendars remain)
-                'appointment_sub_tab_3' => const PatientCalendarWidget(),
-                'appointment_sub_tab_4' => const DoctorCalendarWidget(),
+                    // Appointment sub-tabs (only patient & doctor calendars remain)
+                    'appointment_sub_tab_3' => const PatientCalendarWidget(),
+                    'appointment_sub_tab_4' => const DoctorCalendarWidget(),
 
-                // Treatment
-                // treatment_sub_tab_1 => Treatment (CreateTreatmentWidget)
-                'treatment_sub_tab_1' => const CreateTreatmentWidget(),
-                // treatment_sub_tab_2 => Treatment Details (placeholder)
-                'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment Details — in progress'),
-                // treatment_sub_tab_3 => Follow Up (CreateFollowUpWidget)
-                'treatment_sub_tab_3' => const CreateFollowUpWidget(),
-                // treatment_sub_tab_4 => Follow Up Details (placeholder)
-                'treatment_sub_tab_4' => const _PlaceholderScaffold(title: 'Follow Up Details — in progress'),
+                    // Treatment
+                    // treatment_sub_tab_1 => Treatment (CreateTreatmentWidget)
+                    'treatment_sub_tab_1' => const CreateTreatmentWidget(),
+                    // treatment_sub_tab_2 => Treatment Details (placeholder)
+                    'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment Details — in progress'),
+                    // treatment_sub_tab_3 => Follow Up (CreateFollowUpWidget)
+                    'treatment_sub_tab_3' => const CreateFollowUpWidget(),
+                    // treatment_sub_tab_4 => Follow Up Details (placeholder)
+                    'treatment_sub_tab_4' => const _PlaceholderScaffold(title: 'Follow Up Details — in progress'),
 
-                // Payment
-                'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
-                'payment_sub_tab_2' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
+                    // Payment
+                    'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
+                    'payment_sub_tab_2' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
 
-                // Pharmacy
-                // wired to MedicineStockWidget and label changed in sidebar
-                'pharmacy_sub_tab_1' => const MedicineStockWidget(),
+                    // Pharmacy
+                    // wired to MedicineStockWidget and label changed in sidebar
+                    'pharmacy_sub_tab_1' => const MedicineStockWidget(),
 
-                // note: pharmacy_sub_tab_2 intentionally removed
-
-                _ => const DashboardWidget(),
-              },
+                    _ => const DashboardWidget(),
+                  },
+                ),
+              ),
             ),
           )
         ],
@@ -210,7 +216,6 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onOpenPaymentSub2;
 
   final VoidCallback onOpenPharmacySub1;
-  final VoidCallback onOpenPharmacySub2;
 
   const _Sidebar({
     required this.selected,
@@ -237,7 +242,6 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenPaymentSub1,
     required this.onOpenPaymentSub2,
     required this.onOpenPharmacySub1,
-    required this.onOpenPharmacySub2,
   });
 
   @override
@@ -378,7 +382,7 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       // renamed and wired to MedicineStockWidget
                       _SideSubItem(label: 'Medicine Stock', onTap: onOpenPharmacySub1),
-                      // pharmacy_sub_tab_2 removed
+                      // pharmacy_sub_tab_2 removed intentionally
                     ],
                   ),
 
