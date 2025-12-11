@@ -1,3 +1,5 @@
+// lib/dashboard.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class DashboardWidget extends StatelessWidget {
@@ -7,374 +9,305 @@ class DashboardWidget extends StatelessWidget {
   static const _bg = Color(0xFFF3F4F6);
   static const _title = Color(0xFF111827);
   static const _muted = Color(0xFF6B7280);
-  static const _cardBorder = Color(0xFFE5E7EB);
+
+  // default tile colors (past => grey)
+  static const List<Color> _defaultTileColors = [
+    Color(0xFFBFDBFE), // blue pastel
+    Color(0xFFFDE68A), // yellow pastel (we'll treat as orange)
+    Color(0xFFFECACA), // red pastel
+  ];
+
+  // darker accent colors for patient name
+  static const List<Color> _accentColors = [
+    Color(0xFF2563EB), // blue
+    Color(0xFFEA580C), // orange
+    Color(0xFFDC2626), // red
+  ];
+
+  // grey palette for past events
+  static const Color _pastBg = Color(0xFFF3F4F6);
+  static const Color _pastAccent = Color(0xFF6B7280);
 
   @override
   Widget build(BuildContext context) {
+    // compute today's range in local time
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    final startTs = Timestamp.fromDate(startOfDay);
+    final endTs = Timestamp.fromDate(endOfDay);
+
+    // Query using the same field your calendar widget writes:
+    // 'appointmentDateTime' between startOfDay (inclusive) and endOfDay (exclusive).
+    // This avoids missing documents due to field-name mismatch.
+    final q = FirebaseFirestore.instance
+        .collection('appointments')
+        .where('appointmentDateTime', isGreaterThanOrEqualTo: startTs)
+        .where('appointmentDateTime', isLessThan: endTs)
+        .orderBy('appointmentDateTime', descending: false)
+        .snapshots();
+
     return Container(
       color: _bg,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 18),
-            const Text(
-              'Dashboard',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: _title,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'A quick data overview of the inventory.',
-              style: TextStyle(color: _muted, fontSize: 16),
-            ),
-            const SizedBox(height: 18),
-
-            // KPI CARDS (square, colored outline + pastel bottom bar)
-            LayoutBuilder(
-              builder: (context, c) {
-                final max = c.maxWidth;
-                final size = _squareSize(max);
-                return Wrap(
-                  spacing: 16, // keep in sync with _squareSize()
-                  runSpacing: 16,
-                  children: [
-                    _KpiCard(
-                      size: size,
-                      border: const Color(0xFF22C55E),
-                      bottomFill: const Color(0xFF22C55E).withOpacity(.20),
-                      icon: Icons.verified_user_outlined,
-                      title: 'Good',
-                      subtitle: 'Inventory Status',
-                      actionText: 'View Detailed Report',
-                    ),
-                    _KpiCard(
-                      size: size,
-                      border: const Color(0xFFEAB308),
-                      bottomFill: const Color(0xFFFDE68A),
-                      icon: Icons.payments_outlined,
-                      title: 'Rs. 8,55,875',
-                      subtitle: 'Revenue  ·  Jan 2022',
-                      actionText: 'View Detailed Report',
-                    ),
-                    _KpiCard(
-                      size: size,
-                      border: const Color(0xFF38BDF8),
-                      bottomFill: const Color(0xFF93C5FD),
-                      icon: Icons.medical_services_outlined,
-                      title: '298',
-                      subtitle: 'Medicines Available',
-                      actionText: 'Visit Inventory',
-                    ),
-                    _KpiCard(
-                      size: size,
-                      border: const Color(0xFFEF4444),
-                      bottomFill: const Color(0xFFFECACA),
-                      icon: Icons.warning_amber_rounded,
-                      title: '01',
-                      subtitle: 'Medicine Shortage',
-                      actionText: 'Resolve Now',
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 24),
-
-            // SUMMARY ROWS (unchanged)
-            LayoutBuilder(
-              builder: (_, c) {
-                final max = c.maxWidth;
-                final twoCol = max > 1024;
-                return Wrap(
-                  spacing: 18,
-                  runSpacing: 18,
-                  children: [
-                    _PanelCard(
-                      width: twoCol ? (max - 18) / 2 : max,
-                      title: 'Inventory',
-                      trailingAction: 'Go to Configuration',
-                      sides: const [
-                        _Metric(label: 'Total no of Medicines', value: '298'),
-                        _Metric(label: 'Medicine Groups', value: '24'),
-                      ],
-                    ),
-                    _PanelCard(
-                      width: twoCol ? (max - 18) / 2 : max,
-                      title: 'Quick Report',
-                      trailingAction: 'January 2022',
-                      sides: const [
-                        _Metric(
-                            label: 'Qty of Medicines Sold', value: '70,856'),
-                        _Metric(label: 'Invoices Generated', value: '5,288'),
-                      ],
-                    ),
-                    _PanelCard(
-                      width: twoCol ? (max - 18) / 2 : max,
-                      title: 'My Pharmacy',
-                      trailingAction: 'Go to User Management',
-                      sides: const [
-                        _Metric(label: 'Total no of Suppliers', value: '04'),
-                        _Metric(label: 'Total no of Users', value: '05'),
-                      ],
-                    ),
-                    _PanelCard(
-                      width: twoCol ? (max - 18) / 2 : max,
-                      title: 'Customers',
-                      trailingAction: 'Go to Customers Page',
-                      sides: const [
-                        _Metric(label: 'Total no of Customers', value: '845'),
-                        _Metric(
-                            label: 'Frequently bought Item',
-                            value: 'Adalimumab'),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Responsive square size helper:
-  /// - 4 columns for >= 840px (desktop & large tablets)
-  /// - 3 columns for 640–839px
-  /// - 2 columns for 440–639px
-  /// - 1 column below 440px
-  /// Then shrink a bit (-8) to make them look “cute” and leave comfy gutters.
-  static double _squareSize(double max) {
-    const gap = 16.0;
-    int cols;
-    if (max >= 840) {
-      cols = 4;
-    } else if (max >= 640) {
-      cols = 3;
-    } else if (max >= 440) {
-      cols = 2;
-    } else {
-      cols = 1;
-    }
-    final base = (max - gap * (cols - 1)) / cols;
-    return (base - 8)
-        .clamp(120.0, 9999.0); // small “cute” shrink with a sane min
-  }
-}
-
-class _KpiCard extends StatelessWidget {
-  final double size; // width == height
-  final Color border; // colored outline + icon color
-  final Color bottomFill; // pastel bottom bar fill
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String actionText;
-
-  const _KpiCard({
-    required this.size,
-    required this.border,
-    required this.bottomFill,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.actionText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = 12.0;
-
-    return SizedBox(
-      width: size,
-      height: size, // perfect square
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: border, width: 1.2),
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // top content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 18, 14, 0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, color: border, size: 34),
-                  const SizedBox(height: 10),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF111827),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF6B7280)),
-                  ),
-                ],
-              ),
-            ),
-            // Bottom filled action bar (rounded bottom corners + thin top rule)
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(radius),
-                bottomRight: Radius.circular(radius),
-              ),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: bottomFill,
-                  border: Border(
-                    top: BorderSide(color: border, width: 1.2),
-                  ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              const Text(
+                'Dashboard',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: _title,
                 ),
-                child: TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.chevron_right,
-                      size: 18, color: Color(0xFF374151)),
-                  label: Text(
-                    actionText,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: border,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.circular(radius),
-                        bottomRight: Radius.circular(radius),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Today's Appointments",
+                style: TextStyle(color: _muted, fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: q,
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text('Failed to load appointments: ${snap.error}'),
+                    );
+                  }
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 36),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final docs = snap.data?.docs ?? [];
+
+                  if (docs.isEmpty) {
+                    return Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12)],
                       ),
-                    ),
-                  ),
-                ),
+                      child: const Text('No appointments for today', style: TextStyle(color: _muted)),
+                    );
+                  }
+
+                  // Build list from docs
+                  // Firestore ordering should already be ascending by appointmentDateTime
+                  return Column(
+                    children: docs.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final doc = entry.value;
+                      final data = doc.data();
+
+                      // color selection: if doc contains 'color' (hex string), try parse; otherwise cycle defaults
+                      Color bgColor = _defaultTileColors[idx % _defaultTileColors.length];
+                      Color accent = _accentColors[idx % _accentColors.length];
+                      if (data.containsKey('color') && data['color'] is String) {
+                        final hex = (data['color'] as String).trim();
+                        try {
+                          final parsed = _colorFromHex(hex);
+                          bgColor = parsed.withOpacity(0.25);
+                          accent = parsed;
+                        } catch (_) {
+                          // ignore parse errors
+                        }
+                      } else {
+                        // If appointmentType indicates follow-up, pick orange; else blue.
+                        final appointmentType = (data['appointmentType'] ?? '').toString().toUpperCase();
+                        if (appointmentType == 'F') {
+                          bgColor = _defaultTileColors[1];
+                          accent = _accentColors[1];
+                        } else {
+                          bgColor = _defaultTileColors[0];
+                          accent = _accentColors[0];
+                        }
+                      }
+
+                      // parse appointmentDateTime (preferred), but accept other fields as fallback
+                      dynamic startVal = data['appointmentDateTime'] ?? _extractStart(data);
+                      dynamic endVal = data['end'] ?? data['appointmentEnd'] ?? _extractEnd(data);
+
+                      DateTime? startDt = _toDateTime(startVal)?.toLocal();
+                      DateTime? endDt = _toDateTime(endVal)?.toLocal();
+
+                      // If start exists and end missing, default to +30 minutes.
+                      if (startDt != null && endDt == null) endDt = startDt.add(const Duration(minutes: 30));
+
+                      // If start is missing, skip this doc (shouldn't happen if your calendar writes appointmentDateTime)
+                      if (startDt == null) return const SizedBox.shrink();
+
+                      final isPast = endDt!.isBefore(DateTime.now());
+
+                      final tileBg = isPast ? _pastBg : bgColor;
+                      final tileAccent = isPast ? _pastAccent : accent;
+
+                      final patientName = (data['patientName'] ?? data['title'] ?? data['name'] ?? data['patientId'] ?? 'Unknown').toString();
+                      final notes = (data['notes'] ?? data['description'] ?? data['reason'] ?? '').toString();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                            border: Border.all(color: const Color(0xFFE9EEF3)),
+                          ),
+                          child: Row(
+                            children: [
+                              // left time pill
+                              Container(
+                                margin: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                                width: 120,
+                                decoration: BoxDecoration(
+                                  color: tileBg,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _formatShortTime(startDt),
+                                      style: TextStyle(fontWeight: FontWeight.w600, color: tileAccent),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '—',
+                                      style: TextStyle(color: tileAccent.withOpacity(0.9)),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _formatShortTime(endDt),
+                                      style: TextStyle(fontWeight: FontWeight.w600, color: tileAccent),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // right content
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(6, 18, 18, 18),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        patientName,
+                                        style: TextStyle(
+                                          color: tileAccent,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        notes.isEmpty ? 'No notes' : notes,
+                                        style: const TextStyle(color: _muted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DashboardCardStyle {
-  static const muted = Color(0xFF6B7280);
-  static const cardBorder = Color(0xFFE5E7EB);
-}
-
-class _PanelCard extends StatelessWidget {
-  final double width;
-  final String title;
-  final String trailingAction;
-  final List<_Metric> sides;
-
-  const _PanelCard({
-    required this.width,
-    required this.title,
-    required this.trailingAction,
-    required this.sides,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: _DashboardCardStyle.cardBorder),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            // header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: const BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(color: _DashboardCardStyle.cardBorder)),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: _DashboardCardStyle.muted,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(trailingAction,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.chevron_right,
-                      size: 18, color: _DashboardCardStyle.muted),
-                ],
-              ),
-            ),
-            // content (two columns)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  Expanded(child: _MetricBlock(metric: sides[0])),
-                  const SizedBox(width: 18),
-                  Expanded(child: _MetricBlock(metric: sides[1])),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Metric {
-  final String label;
-  final String value;
-  const _Metric({required this.label, required this.value});
-}
-
-class _MetricBlock extends StatelessWidget {
-  final _Metric metric;
-  const _MetricBlock({required this.metric});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          metric.value,
-          style: const TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: _DashboardCardStyle.muted,
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(metric.label,
-            style: const TextStyle(color: _DashboardCardStyle.muted)),
-      ],
+      ),
     );
+  }
+
+  // --- Helpers ---
+
+  // extract start-like fields from map (fallback)
+  static dynamic _extractStart(Map<String, dynamic> data) {
+    if (data.containsKey('start')) return data['start'];
+    if (data.containsKey('startAt')) return data['startAt'];
+    if (data.containsKey('startDateTime')) return data['startDateTime'];
+    if (data.containsKey('appointmentDate')) return data['appointmentDate'];
+    if (data.containsKey('date')) return data['date'];
+    if (data.containsKey('from')) return data['from'];
+    if (data.containsKey('time')) return data['time'];
+    return null;
+  }
+
+  // extract end-like fields from map (fallback)
+  static dynamic _extractEnd(Map<String, dynamic> data) {
+    if (data.containsKey('end')) return data['end'];
+    if (data.containsKey('endAt')) return data['endAt'];
+    if (data.containsKey('appointmentEnd')) return data['appointmentEnd'];
+    if (data.containsKey('to')) return data['to'];
+    if (data.containsKey('durationMinutes')) {
+      final start = _extractStart(data);
+      final startDt = _toDateTime(start);
+      final mins = (data['durationMinutes'] is num) ? (data['durationMinutes'] as num).toInt() : null;
+      if (startDt != null && mins != null) return startDt.add(Duration(minutes: mins));
+    }
+    return null;
+  }
+
+  // parse Timestamp/DateTime/String/number into DateTime or null
+  static DateTime? _toDateTime(dynamic v) {
+    if (v == null) return null;
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is int) {
+      // treat as milliseconds since epoch, or seconds (detect length)
+      final digits = v.toString().length;
+      if (digits <= 10) return DateTime.fromMillisecondsSinceEpoch(v * 1000);
+      return DateTime.fromMillisecondsSinceEpoch(v);
+    }
+    if (v is String) {
+      // try ISO parse
+      final parsed = DateTime.tryParse(v);
+      if (parsed != null) return parsed;
+      // try to extract digits (e.g. "/Date(1234567890)/" or epoch string)
+      try {
+        final digits = RegExp(r'\d+').firstMatch(v)?.group(0);
+        if (digits != null) {
+          final ms = int.parse(digits);
+          if (digits.length <= 10) return DateTime.fromMillisecondsSinceEpoch(ms * 1000);
+          return DateTime.fromMillisecondsSinceEpoch(ms);
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  // Format a compact time (e.g. 8:30 AM)
+  static String _formatShortTime(DateTime dt) {
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    return '$hour:$minute $ampm';
+  }
+
+  // parse hex color like "#FF00AA" or "FF00AA" or "0xFF00AA"
+  static Color _colorFromHex(String hexString) {
+    var hex = hexString.replaceAll('#', '').replaceAll('0x', '');
+    if (hex.length == 6) hex = 'FF$hex'; // add opacity
+    final intVal = int.parse(hex, radix: 16);
+    return Color(intVal);
   }
 }
