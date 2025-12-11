@@ -11,6 +11,10 @@ import 'package:gt/patient/patientsummarywidget.dart'; // <-- Patient Summary
 import 'package:gt/appointment/patientcalendarwidget.dart';
 import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calendar
 
+// Treatment widgets
+import 'package:gt/treatment/createtreatmentwidget.dart'; // <-- CreateTreatmentWidget
+import 'package:gt/treatment/createfollowupwidget.dart'; // <-- CreateFollowUpWidget (new)
+
 class HomeLayoutWidget extends StatelessWidget {
   const HomeLayoutWidget({super.key});
 
@@ -112,8 +116,10 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                 'appointment_sub_tab_4' => const DoctorCalendarWidget(),
 
                 // Treatment
-                'treatment_sub_tab_1' => const _PlaceholderScaffold(title: 'Treatment — Sub Tab 1'),
-                'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment — Sub Tab 2'),
+                // Replaced treatment_sub_tab_1 with CreateTreatmentWidget
+                'treatment_sub_tab_1' => const CreateTreatmentWidget(),
+                // Replaced treatment_sub_tab_2 with CreateFollowUpWidget (Follow Up)
+                'treatment_sub_tab_2' => const CreateFollowUpWidget(),
 
                 // Payment
                 'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
@@ -321,8 +327,9 @@ class _Sidebar extends StatelessWidget {
                     open: treatmentOpen,
                     onToggle: onToggleTreatment,
                     children: [
-                      _SideSubItem(label: 'treatment_sub_tab_1', onTap: onOpenTreatmentSub1),
-                      _SideSubItem(label: 'treatment_sub_tab_2', onTap: onOpenTreatmentSub2),
+                      // Friendly names for sub-items
+                      _SideSubItem(label: 'Create Treatment', onTap: onOpenTreatmentSub1),
+                      _SideSubItem(label: 'Follow Up', onTap: onOpenTreatmentSub2),
                     ],
                   ),
 
