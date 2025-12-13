@@ -128,7 +128,7 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            // 🔹 Tooth box (compact box + bigger number)
+            // 🔹 Tooth box
             Widget toothBox(int number) {
               final selected = selectedTeeth.contains(number);
               return InkWell(
@@ -151,7 +151,7 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
                   child: Text(
                     '$number',
                     style: TextStyle(
-                      fontSize: 13, // 🔺 Bigger number for visibility
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: selected ? Colors.white : Colors.black,
                     ),
@@ -193,27 +193,6 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 🔹 Smaller Teeth Reference Image
-                      const Text(
-                        'Teeth Numbering Reference',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Center(
-                        child: SizedBox(
-                          width: 520, // 🔻 reduced width
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.asset(
-                              'assets/images/toothselection.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
                       // 🔹 2 × 2 quadrant layout
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
