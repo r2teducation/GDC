@@ -126,117 +126,194 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
     showDialog(
       context: context,
       builder: (_) {
-        return StatefulBuilder(builder: (context, setStateDialog) {
-          Widget toothBox(int number) {
-            final selected = selectedTeeth.contains(number);
-            return InkWell(
-              onTap: () {
-                setStateDialog(() {
-                  selected
-                      ? selectedTeeth.remove(number)
-                      : selectedTeeth.add(number);
-                });
-              },
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? const Color(0xFF0EA5A4) : Colors.white,
-                  border: Border.all(color: Colors.grey),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            // 🔹 Tooth box (compact box + bigger number)
+            Widget toothBox(int number) {
+              final selected = selectedTeeth.contains(number);
+              return InkWell(
+                onTap: () {
+                  setStateDialog(() {
+                    selected
+                        ? selectedTeeth.remove(number)
+                        : selectedTeeth.add(number);
+                  });
+                },
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xFF0EA5A4) : Colors.white,
+                    border: Border.all(color: Colors.grey.shade400),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '$number',
+                    style: TextStyle(
+                      fontSize: 13, // 🔺 Bigger number for visibility
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : Colors.black,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  number.toString(),
-                  style: TextStyle(
-                    color: selected ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.w600,
+              );
+            }
+
+            // 🔹 Quadrant widget
+            Widget quadrant(String title, List<int> teeth) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  GridView.count(
+                    shrinkWrap: true,
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: teeth.map(toothBox).toList(),
+                  ),
+                ],
+              );
+            }
+
+            return AlertDialog(
+              title: const Text('Add Problem'),
+              content: SizedBox(
+                width: 760,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔹 Smaller Teeth Reference Image
+                      const Text(
+                        'Teeth Numbering Reference',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: SizedBox(
+                          width: 520, // 🔻 reduced width
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              'assets/images/toothselection.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // 🔹 2 × 2 quadrant layout
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: quadrant(
+                              'Upper Left',
+                              [18, 17, 16, 15, 14, 13, 12, 11],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: quadrant(
+                              'Upper Right',
+                              [21, 22, 23, 24, 25, 26, 27, 28],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: quadrant(
+                              'Lower Left',
+                              [48, 47, 46, 45, 44, 43, 42, 41],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: quadrant(
+                              'Lower Right',
+                              [31, 32, 33, 34, 35, 36, 37, 38],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Text(
+                        'Selected Teeth: ${selectedTeeth.join(', ')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      DropdownButtonFormField2<String>(
+                        decoration: _dec('Type of problem'),
+                        items: const [
+                          'Root Canal',
+                          'Implants',
+                          'Crowns/Bridges',
+                          'Braces',
+                          'Dentures'
+                        ]
+                            .map(
+                              (e) => DropdownMenuItem(value: e, child: Text(e)),
+                            )
+                            .toList(),
+                        onChanged: (v) => problemType = v,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      TextFormField(
+                        controller: notesCtrl,
+                        decoration: _dec('Notes'),
+                        maxLines: 3,
+                      ),
+                    ],
                   ),
                 ),
               ),
-            );
-          }
-
-          Widget quadrant(String title, List<int> teeth) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                GridView.count(
-                  shrinkWrap: true,
-                  crossAxisCount: 8,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: teeth.map(toothBox).toList(),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (selectedTeeth.isEmpty || problemType == null) return;
+                    setState(() {
+                      _problems.add(
+                        _ProblemRow(
+                          teeth: selectedTeeth.toList()..sort(),
+                          type: problemType!,
+                          notes: notesCtrl.text.trim(),
+                        ),
+                      );
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Add'),
                 ),
               ],
             );
-          }
-
-          return AlertDialog(
-            title: const Text('Add Problem'),
-            content: SizedBox(
-              width: 720,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    quadrant('Upper Left', [18, 17, 16, 15, 14, 13, 12, 11]),
-                    const SizedBox(height: 12),
-                    quadrant('Upper Right', [21, 22, 23, 24, 25, 26, 27, 28]),
-                    const SizedBox(height: 12),
-                    quadrant('Lower Left', [48, 47, 46, 45, 44, 43, 42, 41]),
-                    const SizedBox(height: 12),
-                    quadrant('Lower Right', [31, 32, 33, 34, 35, 36, 37, 38]),
-                    const SizedBox(height: 12),
-                    Text('Selected Teeth: ${selectedTeeth.join(', ')}'),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField2<String>(
-                      decoration: _dec('Type of problem'),
-                      items: const [
-                        'Root Canal',
-                        'Implants',
-                        'Crowns/Bridges',
-                        'Braces',
-                        'Dentures'
-                      ]
-                          .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) => problemType = v,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: notesCtrl,
-                      decoration: _dec('Notes'),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (selectedTeeth.isEmpty || problemType == null) return;
-                  setState(() {
-                    _problems.add(_ProblemRow(
-                      teeth: selectedTeeth.toList()..sort(),
-                      type: problemType!,
-                      notes: notesCtrl.text.trim(),
-                    ));
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text('Add'),
-              ),
-            ],
-          );
-        });
+          },
+        );
       },
     );
   }
@@ -1068,7 +1145,7 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
                   // ////////////////////////
                   // Doctor Notes
                   // ////////////////////////
-                  _sectionHeader('Section 7 — Doctor Notes'),
+                  _sectionHeader('Section 8 — Doctor Notes'),
                   TextFormField(
                     controller: _doctorNotesCtrl,
                     decoration: _dec('Doctor\'s notes (diagnosis, plan)'),
@@ -1081,7 +1158,7 @@ class _CreateTreatmentWidgetState extends State<CreateTreatmentWidget> {
                   // ////////////////////////
                   // Patient Consent
                   // ////////////////////////
-                  _sectionHeader('Section 8 — Patient Consent'),
+                  _sectionHeader('Section 9 — Patient Consent'),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Patient declaration / consent'),
