@@ -40,7 +40,8 @@ class PatientCalendarWidget extends StatefulWidget {
 
 class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
-  final DateFormat _headerFormatter = DateFormat('MMMM yyyy'); // e.g. December 2025
+  final DateFormat _headerFormatter =
+      DateFormat('MMMM yyyy'); // e.g. December 2025
   final DateFormat _dayFormat = DateFormat('d');
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -72,6 +73,56 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   // If your DoctorCalendar writes to a different collection name, change this.
   final String _doctorCollectionName = 'doctor_unavailability';
 
+  // ===== NEW ====
+  /// ===== NEW FORM CONTROLLERS (SECTIONS) =====
+
+  // Section 1 – Vitals
+  final bpSysCtrl = TextEditingController();
+  final bpDiaCtrl = TextEditingController();
+  double heartRate = 72;
+  double breathingRate = 16;
+  final heightCtrl = TextEditingController();
+  final weightCtrl = TextEditingController();
+  final fbsCtrl = TextEditingController();
+  final rbsCtrl = TextEditingController();
+
+  // Section 2 – Health Conditions
+  final Map<String, bool> healthConditions = {
+    'Diabetes': false,
+    'Hypertension': false,
+    'Heart Disease': false,
+    'Asthma': false,
+    'Kidney Disease': false,
+    'Liver Disease': false,
+    'Thyroid Disorder': false,
+    'Bleeding Disorders': false,
+    'Neurological Issues': false,
+  };
+
+  // Section 3 – Allergies
+  bool drugAllergy = false;
+  bool foodAllergy = false;
+  bool latexAllergy = false;
+  final allergyNotesCtrl = TextEditingController();
+
+  // Section 4 – Surgery
+  final surgeryCtrl = TextEditingController();
+
+  // Section 6 – Dental History
+  final Map<String, bool> dentalHistory = {
+    'Root Canal': false,
+    'Implants': false,
+    'Crowns / Bridges': false,
+    'Braces': false,
+    'Dentures': false,
+  };
+  final dentalNotesCtrl = TextEditingController();
+
+  // Section 9 – Consent
+  bool consentGiven = false;
+  final consentSignatureCtrl = TextEditingController();
+
+  // ===== END NEW =====
   @override
   void initState() {
     super.initState();
@@ -89,7 +140,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   /// Load patient names once (cache), then start listening to appointments and doctor busy docs.
   Future<void> _loadPatientsThenListenAppointmentsAndDoctorBusy() async {
     try {
-      final patientsSnap = await _db.collection('patients').orderBy('patientId').get();
+      final patientsSnap =
+          await _db.collection('patients').orderBy('patientId').get();
       final List<_PatientOption> opts = [];
       for (final doc in patientsSnap.docs) {
         final data = doc.data();
@@ -127,7 +179,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     });
 
     // Listen to doctor busy/unavailability changes
-    _doctorBusySub = _db.collection(_doctorCollectionName).snapshots().listen((snap) {
+    _doctorBusySub =
+        _db.collection(_doctorCollectionName).snapshots().listen((snap) {
       _buildDoctorBusyFromSnapshot(snap);
     }, onError: (err) {
       debugPrint('Doctor busy snapshot error: $err');
@@ -318,11 +371,13 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       context: ctx,
       builder: (dctx) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
           backgroundColor: Colors.transparent,
           child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -339,7 +394,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                           Expanded(
                             child: Text(
                               DateFormat('EEEE, d MMMM yyyy').format(day),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w700),
                             ),
                           ),
                           IconButton(
@@ -360,46 +416,81 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               // Appointments
                               Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text('Appointments', style: TextStyle(fontWeight: FontWeight.w700)),
+                                child: Text('Appointments',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w700)),
                               ),
                               const SizedBox(height: 8),
                               if (events.isEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  child: Text('No appointments scheduled.', style: TextStyle(color: Colors.grey[600])),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('No appointments scheduled.',
+                                      style:
+                                          TextStyle(color: Colors.grey[600])),
                                 )
                               else
                                 Column(
                                   children: events.map((ev) {
-                                    final color = ev.isFollowUp ? Colors.orange : Colors.blue;
-                                    final timeLabel = '${ev.start.format(ctx)} — ${ev.end.format(ctx)}';
+                                    final color = ev.isFollowUp
+                                        ? Colors.orange
+                                        : Colors.blue;
+                                    final timeLabel =
+                                        '${ev.start.format(ctx)} — ${ev.end.format(ctx)}';
                                     return Container(
                                       margin: const EdgeInsets.only(bottom: 10),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: Colors.black
+                                                  .withOpacity(0.03),
+                                              blurRadius: 6)
+                                        ],
                                       ),
                                       child: Row(
                                         children: [
                                           Container(
                                             width: 120,
-                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 12, horizontal: 12),
                                             decoration: BoxDecoration(
                                               color: color.withOpacity(0.12),
-                                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                      topLeft:
+                                                          Radius.circular(10),
+                                                      bottomLeft:
+                                                          Radius.circular(10)),
                                             ),
-                                            child: Text(timeLabel, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                            child: Text(timeLabel,
+                                                style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black87)),
                                           ),
                                           Expanded(
                                             child: Padding(
                                               padding: const EdgeInsets.all(12),
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(ev.patientName, style: TextStyle(fontWeight: FontWeight.w700, color: color.shade700)),
+                                                  Text(ev.patientName,
+                                                      style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color:
+                                                              color.shade700)),
                                                   const SizedBox(height: 6),
-                                                  Text(ev.notes.isNotEmpty ? ev.notes : 'No notes', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                                  Text(
+                                                      ev.notes.isNotEmpty
+                                                          ? ev.notes
+                                                          : 'No notes',
+                                                      style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color:
+                                                              Colors.black54)),
                                                 ],
                                               ),
                                             ),
@@ -417,13 +508,18 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               // Doctor busy section
                               Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text('Doctor busy hours', style: TextStyle(fontWeight: FontWeight.w700)),
+                                child: Text('Doctor busy hours',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w700)),
                               ),
                               const SizedBox(height: 8),
                               if (busy.isEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  child: Text('No busy hours logged.', style: TextStyle(color: Colors.grey[600])),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('No busy hours logged.',
+                                      style:
+                                          TextStyle(color: Colors.grey[600])),
                                 )
                               else
                                 Column(
@@ -434,28 +530,56 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                       decoration: BoxDecoration(
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: Colors.black
+                                                  .withOpacity(0.03),
+                                              blurRadius: 6)
+                                        ],
                                       ),
                                       child: Row(
                                         children: [
                                           Container(
                                             width: 120,
-                                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 12, horizontal: 12),
                                             decoration: BoxDecoration(
-                                              color: Colors.red.withOpacity(0.12),
-                                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                                              color:
+                                                  Colors.red.withOpacity(0.12),
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                      topLeft:
+                                                          Radius.circular(10),
+                                                      bottomLeft:
+                                                          Radius.circular(10)),
                                             ),
-                                            child: Text(timeLabel, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                            child: Text(timeLabel,
+                                                style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black87)),
                                           ),
                                           Expanded(
                                             child: Padding(
                                               padding: const EdgeInsets.all(12),
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Text('Doctor busy', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.red.shade700)),
+                                                  Text('Doctor busy',
+                                                      style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors
+                                                              .red.shade700)),
                                                   const SizedBox(height: 6),
-                                                  Text(b.notes.isNotEmpty ? b.notes : 'No notes', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                                  Text(
+                                                      b.notes.isNotEmpty
+                                                          ? b.notes
+                                                          : 'No notes',
+                                                      style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color:
+                                                              Colors.black54)),
                                                 ],
                                               ),
                                             ),
@@ -543,7 +667,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       context: ctx,
       builder: (dctx) {
         return AlertDialog(
-          title: Text('Select time — ${DateFormat('d MMM yyyy').format(forDate)}'),
+          title:
+              Text('Select time — ${DateFormat('d MMM yyyy').format(forDate)}'),
           content: SizedBox(
             width: double.maxFinite,
             child: Wrap(
@@ -560,7 +685,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                   child: ElevatedButton(
                     onPressed: taken ? null : () => Navigator.of(dctx).pop(s),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: taken ? Colors.grey.shade300 : Colors.white,
+                      backgroundColor:
+                          taken ? Colors.grey.shade300 : Colors.white,
                       foregroundColor:
                           taken ? Colors.grey.shade600 : Colors.black87,
                       elevation: taken ? 0 : 2,
@@ -594,7 +720,6 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     String appointmentType = 'N';
     final TextEditingController notesCtrl = TextEditingController();
 
-    // Gather occupied patient slots (from in-memory events) and doctor busy slots from in-memory map
     final patientOccupied = _occupiedSlotsFromMapForDate(date);
     final doctorOccupied = _doctorOccupiedSlotsFromMapForDate(date);
     final occupied = {...patientOccupied, ...doctorOccupied};
@@ -602,301 +727,342 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     await showDialog(
       context: ctx,
       builder: (dctx) {
-        return StatefulBuilder(builder: (dctx, setStateSB) {
-          Future<void> pickTime() async {
-            final t = await _showTimeSlotPickerDialog(dctx, date, occupied);
-            if (t != null) {
-              setStateSB(() => selectedTime = t);
-            }
-          }
-
-          Future<void> save() async {
-            if (selectedPatientId == null) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Please select a patient')));
-              return;
-            }
-            if (selectedTime == null) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Please select a time slot')));
-              return;
+        return StatefulBuilder(
+          builder: (dctx, setStateSB) {
+            Future<void> pickTime() async {
+              final t = await _showTimeSlotPickerDialog(dctx, date, occupied);
+              if (t != null) {
+                setStateSB(() => selectedTime = t);
+              }
             }
 
-            final combined = DateTime(
-              date.year,
-              date.month,
-              date.day,
-              selectedTime!.hour,
-              selectedTime!.minute,
-            );
+            Future<void> save() async {
+              if (selectedPatientId == null) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please select a patient')),
+                );
+                return;
+              }
+              if (selectedTime == null) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please select a time slot')),
+                );
+                return;
+              }
 
-            final hhmm =
-                '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+              final combined = DateTime(
+                date.year,
+                date.month,
+                date.day,
+                selectedTime!.hour,
+                selectedTime!.minute,
+              );
 
-            // Re-check current state: patient map + latest doctor busy map (both maintained by snapshots)
-            final currentlyOccupiedPatients = _occupiedSlotsFromMapForDate(date);
-            final currentlyDoctorOccupied = _doctorOccupiedSlotsFromMapForDate(date);
-            final currentlyOccupied = {...currentlyOccupiedPatients, ...currentlyDoctorOccupied};
+              final hhmm =
+                  '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
-            if (currentlyOccupied.contains(hhmm)) {
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                  content: Text('Selected slot already taken. Please pick another.')));
-              return;
+              final currentlyOccupied = {
+                ..._occupiedSlotsFromMapForDate(date),
+                ..._doctorOccupiedSlotsFromMapForDate(date),
+              };
+
+              if (currentlyOccupied.contains(hhmm)) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Selected slot already taken. Please pick another.'),
+                  ),
+                );
+                return;
+              }
+
+              try {
+                await _db.collection('appointments').add({
+                  'patientId': selectedPatientId,
+                  'appointmentDateTime': Timestamp.fromDate(combined),
+                  'appointmentType': appointmentType,
+                  'notes': notesCtrl.text.trim(),
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Appointment created')),
+                );
+                Navigator.of(dctx).pop();
+              } catch (e) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Failed to create appointment: $e')),
+                );
+              }
             }
 
-            try {
-              await _db.collection('appointments').add({
-                'patientId': selectedPatientId,
-                'appointmentDateTime': Timestamp.fromDate(combined),
-                'appointmentType': appointmentType,
-                'notes': notesCtrl.text.trim(),
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-
-              ScaffoldMessenger.of(ctx)
-                  .showSnackBar(const SnackBar(content: Text('Appointment created')));
-              Navigator.of(dctx).pop();
-            } catch (e) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text('Failed to create appointment: $e')));
-            }
-          }
-
-          return Dialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: ConstrainedBox(
-              constraints:
-                  BoxConstraints(maxWidth: 620, maxHeight: MediaQuery.of(ctx).size.height * 0.8),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+            return Dialog(
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 620,
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Create Appointment — ${DateFormat('EEEE, d MMM yyyy').format(date)}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                    /// ================= HEADER =================
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Create Appointment — ${DateFormat('EEEE, d MMM yyyy').format(date)}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
                           ),
-                        ),
-                        IconButton(
+                          IconButton(
                             onPressed: () => Navigator.of(dctx).pop(),
-                            icon: const Icon(Icons.close))
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Patient dropdown
-                    Align(
-                        alignment: Alignment.centerLeft,
-                        child: const Text('Patient',
-                            style: TextStyle(fontWeight: FontWeight.w600))),
-                    const SizedBox(height: 6),
-
-                    if (_loadingPatients)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: LinearProgressIndicator(),
-                      )
-                    else
-                      DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: selectedPatientId,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: 'Select patient',
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        items: _patientOptions
-                            .map(
-                              (p) => DropdownMenuItem<String>(
-                                value: p.id,
-                                child: _buildPatientOptionRow(p),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setStateSB(() => selectedPatientId = v),
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 280,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          scrollbarTheme: ScrollbarThemeData(
-                            radius: const Radius.circular(12),
-                            thickness: MaterialStateProperty.all(4),
-                            thumbVisibility: MaterialStateProperty.all(true),
-                          ),
-                        ),
-                        dropdownSearchData: DropdownSearchData(
-                          searchController: _createSearchCtrl,
-                          searchInnerWidgetHeight: 52,
-                          searchInnerWidget: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: _createSearchCtrl,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: 'Search by ID / Name',
-                                prefixIcon: const Icon(Icons.search, size: 18),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                          searchMatchFn: (item, searchValue) {
-                            final v = item.value ?? '';
-                            final opt = _patientOptions.firstWhere(
-                              (p) => p.id == v,
-                              orElse: () => _PatientOption(id: v, label: v),
-                            );
-                            return opt.label.toLowerCase().contains(searchValue.toLowerCase());
-                          },
-                        ),
-                        onMenuStateChange: (isOpen) {
-                          if (!isOpen) _createSearchCtrl.clear();
-                        },
+                            icon: const Icon(Icons.close),
+                          )
+                        ],
                       ),
+                    ),
+                    const Divider(height: 1),
 
-                    const SizedBox(height: 12),
-
-                    // Time picker
-                    Align(
-                        alignment: Alignment.centerLeft,
-                        child: const Text('Time',
-                            style: TextStyle(fontWeight: FontWeight.w600))),
-                    const SizedBox(height: 6),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: pickTime,
-                            style: OutlinedButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12))),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(selectedTime == null
-                                  ? 'Choose time slot'
-                                  : selectedTime!.format(ctx)),
+                    /// ================= SCROLLABLE FORM =================
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text('Patient',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 6),
+                            _loadingPatients
+                                ? const LinearProgressIndicator()
+                                : DropdownButtonFormField2<String>(
+                                    isExpanded: true,
+                                    value: selectedPatientId,
+                                    decoration: _input('Select patient'),
+                                    items: _patientOptions
+                                        .map((p) => DropdownMenuItem(
+                                              value: p.id,
+                                              child: _buildPatientOptionRow(p),
+                                            ))
+                                        .toList(),
+                                    onChanged: (v) =>
+                                        setStateSB(() => selectedPatientId = v),
+                                  ),
+                            const SizedBox(height: 12),
+                            const Text('Time',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 6),
+                            OutlinedButton(
+                              onPressed: pickTime,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  selectedTime == null
+                                      ? 'Choose time slot'
+                                      : selectedTime!.format(ctx),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 12),
+                            const Text('Appointment Type',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: RadioListTile<String>(
+                                    title: const Text('New'),
+                                    value: 'N',
+                                    groupValue: appointmentType,
+                                    onChanged: (v) =>
+                                        setStateSB(() => appointmentType = v!),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: RadioListTile<String>(
+                                    title: const Text('Follow Up'),
+                                    value: 'F',
+                                    groupValue: appointmentType,
+                                    onChanged: (v) =>
+                                        setStateSB(() => appointmentType = v!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            _section('Section 1 — Vitals'),
+                            _two(bpSysCtrl, 'Systolic', bpDiaCtrl, 'Diastolic'),
+                            const SizedBox(height: 12),
+                            _slider('Heart Rate', heartRate, 40, 150,
+                                (v) => setStateSB(() => heartRate = v)),
+                            _slider('Breathing Rate', breathingRate, 10, 40,
+                                (v) => setStateSB(() => breathingRate = v)),
+                            _three(heightCtrl, 'Height (cm)', weightCtrl,
+                                'Weight (kg)', 'BMI'),
+                            const SizedBox(height: 12),
+                            _two(fbsCtrl, 'FBS', rbsCtrl, 'RBS'),
+                            _section('Section 2 — Health Conditions'),
+                            _checkboxGrid(healthConditions, setStateSB),
+                            _section('Section 3 — Allergies'),
+                            CheckboxListTile(
+                              value: drugAllergy,
+                              onChanged: (v) =>
+                                  setStateSB(() => drugAllergy = v!),
+                              title: const Text('Drug Allergy'),
+                            ),
+                            CheckboxListTile(
+                              value: foodAllergy,
+                              onChanged: (v) =>
+                                  setStateSB(() => foodAllergy = v!),
+                              title: const Text('Food Allergy'),
+                            ),
+                            CheckboxListTile(
+                              value: latexAllergy,
+                              onChanged: (v) =>
+                                  setStateSB(() => latexAllergy = v!),
+                              title: const Text('Latex Allergy'),
+                            ),
+                            TextField(
+                              controller: allergyNotesCtrl,
+                              decoration: _input('Other allergies'),
+                            ),
+                            _section('Section 4 — Past Surgical History'),
+                            TextField(
+                              controller: surgeryCtrl,
+                              maxLines: 3,
+                              decoration: _input('Describe surgeries'),
+                            ),
+                            _section('Section 6 — Dental History'),
+                            _checkboxGrid(dentalHistory, setStateSB),
+                            TextField(
+                              controller: dentalNotesCtrl,
+                              decoration: _input('Dental complications'),
+                            ),
+                            _section('Section 9 — Patient Consent'),
+                            CheckboxListTile(
+                              value: consentGiven,
+                              onChanged: (v) =>
+                                  setStateSB(() => consentGiven = v!),
+                              title:
+                                  const Text('Patient declaration / consent'),
+                            ),
+                            TextField(
+                              controller: consentSignatureCtrl,
+                              decoration:
+                                  _input('Patient signature / scanned ref'),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text('Notes (optional)',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            TextField(
+                              controller: notesCtrl,
+                              maxLines: 3,
+                              decoration: _input('Enter notes'),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-
-                        Builder(builder: (_) {
-                          final key = _ymd(date);
-                          final events = _eventsMap[key] ?? [];
-                          final int newCount =
-                              events.where((e) => e.isFollowUp == false).length;
-                          final int followUpCount =
-                              events.where((e) => e.isFollowUp == true).length;
-                          final int doctorCount = (_doctorBusyMap[key] ?? []).length;
-
-                          return Row(
-                            children: [
-                              if (newCount > 0)
-                                _countBadge(newCount, Colors.blue, 'New'),
-                              const SizedBox(width: 6),
-                              if (followUpCount > 0)
-                                _countBadge(followUpCount, Colors.orange, 'Follow Up'),
-                              const SizedBox(width: 6),
-                              if (doctorCount > 0)
-                                _countBadge(doctorCount, Colors.red, 'Doctor Busy'),
-                            ],
-                          );
-                        })
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Appointment type
-                    Align(
-                        alignment: Alignment.centerLeft,
-                        child: const Text('Appointment Type',
-                            style: TextStyle(fontWeight: FontWeight.w600))),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: RadioListTile<String>(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('New'),
-                            value: 'N',
-                            groupValue: appointmentType,
-                            onChanged: (v) =>
-                                setStateSB(() => appointmentType = v ?? 'N'),
-                          ),
-                        ),
-                        Expanded(
-                          child: RadioListTile<String>(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Follow Up'),
-                            value: 'F',
-                            groupValue: appointmentType,
-                            onChanged: (v) =>
-                                setStateSB(() => appointmentType = v ?? 'F'),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Notes
-                    Align(
-                        alignment: Alignment.centerLeft,
-                        child: const Text('Notes (optional)',
-                            style: TextStyle(fontWeight: FontWeight.w600))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: notesCtrl,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: 'Enter notes',
-                        filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const Divider(height: 1),
 
-                    // Actions
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
+                    /// ================= FOOTER =================
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
                             onPressed: () => Navigator.of(dctx).pop(),
-                            child: const Text('Cancel')),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: save,
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF16A34A)),
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    )
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: save,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF16A34A),
+                            ),
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-          );
-        });
+            );
+          },
+        );
       },
+    );
+  }
+
+  InputDecoration _input(String label) => InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      );
+
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      );
+
+  Widget _two(TextEditingController a, String alabel, TextEditingController b,
+          String blabel) =>
+      Row(children: [
+        Expanded(child: TextField(controller: a, decoration: _input(alabel))),
+        const SizedBox(width: 12),
+        Expanded(child: TextField(controller: b, decoration: _input(blabel))),
+      ]);
+
+  Widget _three(TextEditingController a, String alabel, TextEditingController b,
+          String blabel, String c) =>
+      Row(children: [
+        Expanded(child: TextField(controller: a, decoration: _input(alabel))),
+        const SizedBox(width: 12),
+        Expanded(child: TextField(controller: b, decoration: _input(blabel))),
+        const SizedBox(width: 12),
+        Expanded(child: TextField(decoration: _input(c))),
+      ]);
+
+  Widget _slider(String label, double value, double min, double max,
+          ValueChanged<double> onChanged) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label — ${value.toInt()}'),
+          Slider(value: value, min: min, max: max, onChanged: onChanged),
+        ],
+      );
+  Widget _checkboxGrid(
+    Map<String, bool> items,
+    void Function(VoidCallback fn) setStateSB,
+  ) {
+    return Wrap(
+      spacing: 24,
+      runSpacing: 8,
+      children: items.keys.map((k) {
+        return SizedBox(
+          width: 220,
+          child: CheckboxListTile(
+            value: items[k],
+            onChanged: (v) {
+              setStateSB(() {
+                items[k] = v ?? false;
+              });
+            },
+            title: Text(k),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -922,8 +1088,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                     child: DropdownButton<DateTime>(
                       value: DateTime(_focusedMonth.year, _focusedMonth.month),
                       items: List.generate(24, (i) {
-                        final m =
-                            DateTime(DateTime.now().year, DateTime.now().month + i - 12);
+                        final m = DateTime(
+                            DateTime.now().year, DateTime.now().month + i - 12);
                         return DropdownMenuItem<DateTime>(
                           value: DateTime(m.year, m.month),
                           child: Text(_headerFormatter.format(m)),
@@ -931,7 +1097,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                       }),
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() => _focusedMonth = DateTime(val.year, val.month));
+                          setState(() =>
+                              _focusedMonth = DateTime(val.year, val.month));
                         }
                       },
                     ),
@@ -961,19 +1128,24 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               fontWeight: FontWeight.w700)))),
               const Expanded(
                   child: Center(
-                      child: Text('Mon', style: TextStyle(fontWeight: FontWeight.w700)))),
+                      child: Text('Mon',
+                          style: TextStyle(fontWeight: FontWeight.w700)))),
               const Expanded(
                   child: Center(
-                      child: Text('Tue', style: TextStyle(fontWeight: FontWeight.w700)))),
+                      child: Text('Tue',
+                          style: TextStyle(fontWeight: FontWeight.w700)))),
               const Expanded(
                   child: Center(
-                      child: Text('Wed', style: TextStyle(fontWeight: FontWeight.w700)))),
+                      child: Text('Wed',
+                          style: TextStyle(fontWeight: FontWeight.w700)))),
               const Expanded(
                   child: Center(
-                      child: Text('Thu', style: TextStyle(fontWeight: FontWeight.w700)))),
+                      child: Text('Thu',
+                          style: TextStyle(fontWeight: FontWeight.w700)))),
               const Expanded(
                   child: Center(
-                      child: Text('Fri', style: TextStyle(fontWeight: FontWeight.w700)))),
+                      child: Text('Fri',
+                          style: TextStyle(fontWeight: FontWeight.w700)))),
               Expanded(
                   child: Center(
                       child: Text('Sat',
@@ -1004,7 +1176,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                         final ymd = _ymd(d);
                         final events = _eventsMap[ymd] ?? [];
                         final busy = _doctorBusyMap[ymd] ?? [];
-                        final bool isCurrentMonth = d.month == _focusedMonth.month;
+                        final bool isCurrentMonth =
+                            d.month == _focusedMonth.month;
 
                         final int newCount =
                             events.where((e) => e.isFollowUp == false).length;
@@ -1019,8 +1192,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                color:
-                                    isCurrentMonth ? Colors.white : Colors.grey.shade100,
+                                color: isCurrentMonth
+                                    ? Colors.white
+                                    : Colors.grey.shade100,
                                 border: Border.all(
                                   color: _isSameDate(d, DateTime.now())
                                       ? const Color(0xFF16A34A)
@@ -1033,7 +1207,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                 children: [
                                   // top row: day number and counts (right-aligned)
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 8),
                                     child: Row(
                                       children: [
                                         Text(_dayFormat.format(d),
@@ -1044,11 +1219,17 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                                     ? Colors.black87
                                                     : Colors.grey)),
                                         const Spacer(),
-                                        if (newCount > 0) _countBadge(newCount, Colors.blue, 'New'),
+                                        if (newCount > 0)
+                                          _countBadge(
+                                              newCount, Colors.blue, 'New'),
                                         const SizedBox(width: 6),
-                                        if (followUpCount > 0) _countBadge(followUpCount, Colors.orange, 'Follow Up'),
+                                        if (followUpCount > 0)
+                                          _countBadge(followUpCount,
+                                              Colors.orange, 'Follow Up'),
                                         const SizedBox(width: 6),
-                                        if (doctorCount > 0) _countBadge(doctorCount, Colors.red, 'Doctor Busy'),
+                                        if (doctorCount > 0)
+                                          _countBadge(doctorCount, Colors.red,
+                                              'Doctor Busy'),
                                       ],
                                     ),
                                   ),
@@ -1060,26 +1241,43 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                   else
                                     Expanded(
                                       child: ListView(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8),
                                         children: [
                                           // show appointments
                                           ...events.map((ev) {
-                                            final color = ev.isFollowUp ? Colors.orange : Colors.blue;
-                                            final start = ev.start.format(context);
+                                            final color = ev.isFollowUp
+                                                ? Colors.orange
+                                                : Colors.blue;
+                                            final start =
+                                                ev.start.format(context);
                                             final end = ev.end.format(context);
                                             return Container(
-                                              margin: const EdgeInsets.only(bottom: 6),
+                                              margin: const EdgeInsets.only(
+                                                  bottom: 6),
                                               padding: const EdgeInsets.all(6),
                                               decoration: BoxDecoration(
                                                 color: color.withOpacity(0.12),
-                                                borderRadius: BorderRadius.circular(8),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(ev.patientName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color.shade700)),
+                                                  Text(ev.patientName,
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color:
+                                                              color.shade700)),
                                                   const SizedBox(height: 2),
-                                                  Text('$start - $end', style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                                                  Text('$start - $end',
+                                                      style: const TextStyle(
+                                                          fontSize: 11,
+                                                          color:
+                                                              Colors.black54)),
                                                 ],
                                               ),
                                             );
@@ -1089,18 +1287,32 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                           ...busy.map((b) {
                                             final t = b.time.format(context);
                                             return Container(
-                                              margin: const EdgeInsets.only(bottom: 6),
+                                              margin: const EdgeInsets.only(
+                                                  bottom: 6),
                                               padding: const EdgeInsets.all(6),
                                               decoration: BoxDecoration(
-                                                color: Colors.red.withOpacity(0.12),
-                                                borderRadius: BorderRadius.circular(8),
+                                                color: Colors.red
+                                                    .withOpacity(0.12),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Text('Doctor busy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.red.shade700)),
+                                                  Text('Doctor busy',
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors
+                                                              .red.shade700)),
                                                   const SizedBox(height: 2),
-                                                  Text(t, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                                                  Text(t,
+                                                      style: const TextStyle(
+                                                          fontSize: 11,
+                                                          color:
+                                                              Colors.black54)),
                                                 ],
                                               ),
                                             );
@@ -1116,9 +1328,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                       }).toList(),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -1146,11 +1356,17 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 4,
+                offset: const Offset(0, 2))
+          ],
         ),
         child: Text(
           count.toString(),
-          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -1159,7 +1375,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   Widget _legendDot(Color color, String label) {
     return Row(
       children: [
-        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+        Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(4))),
         const SizedBox(width: 8),
         Text(label, style: const TextStyle(color: Colors.black87)),
       ],
@@ -1169,17 +1389,12 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   Widget _buildPatientOptionRow(_PatientOption p) {
     final parts = p.label.split(RegExp(r'\s{2,}'));
     final idPart = parts.isNotEmpty ? parts.first : p.id;
-    final namePart =
-        parts.length > 1 ? parts.sublist(1).join('  ') : '';
+    final namePart = parts.length > 1 ? parts.sublist(1).join('  ') : '';
     return Row(
       children: [
-        Text(idPart,
-            style:
-                const TextStyle(fontWeight: FontWeight.w600)),
+        Text(idPart, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(width: 12),
-        Expanded(
-            child: Text(namePart,
-                overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(namePart, overflow: TextOverflow.ellipsis)),
       ],
     );
   }
