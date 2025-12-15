@@ -437,12 +437,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             ],
           ),
 
-          _sectionHeader('Doctor Notes'),
-          TextFormField(
-            controller: _doctorNotesCtrl,
-            maxLines: 5,
-            decoration: _dec('Doctor notes'),
-          ),
+          
 
           _sectionHeader('Chief Complaint'),
           for (int i = 0; i < _problems.length; i++)
@@ -460,6 +455,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             onPressed: _openAddProblemDialog,
             icon: const Icon(Icons.add),
             label: const Text('Add Problem'),
+          ),
+
+          _sectionHeader('Doctor Notes'),
+          TextFormField(
+            controller: _doctorNotesCtrl,
+            maxLines: 5,
+            decoration: _dec('Doctor notes'),
           ),
 
           const SizedBox(height: 24),

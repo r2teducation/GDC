@@ -835,8 +835,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text('Patient',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
+                         //   const Text('Patient',
+                         //       style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 6),
                             _loadingPatients
                                 ? const LinearProgressIndicator()
@@ -844,14 +844,90 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                     isExpanded: true,
                                     value: selectedPatientId,
                                     decoration: _input('Select patient'),
+
                                     items: _patientOptions
-                                        .map((p) => DropdownMenuItem(
-                                              value: p.id,
-                                              child: _buildPatientOptionRow(p),
-                                            ))
+                                        .map(
+                                          (p) => DropdownMenuItem<String>(
+                                            value: p.id,
+                                            child: _buildPatientOptionRow(p),
+                                          ),
+                                        )
                                         .toList(),
-                                    onChanged: (v) =>
-                                        setStateSB(() => selectedPatientId = v),
+
+                                    onChanged: (v) {
+                                      setStateSB(() => selectedPatientId = v);
+                                    },
+
+                                    // ===== SAME DROPDOWN LOOK & FEEL =====
+                                    dropdownStyleData: DropdownStyleData(
+                                      maxHeight: 280,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.06),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      scrollbarTheme: ScrollbarThemeData(
+                                        radius: const Radius.circular(12),
+                                        thickness: MaterialStateProperty.all(4),
+                                        thumbVisibility:
+                                            MaterialStateProperty.all(true),
+                                      ),
+                                    ),
+
+                                    menuItemStyleData: const MenuItemStyleData(
+                                      height: 44,
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 10),
+                                    ),
+
+                                    // ===== SEARCH (IDENTICAL BEHAVIOR) =====
+                                    dropdownSearchData: DropdownSearchData(
+                                      searchController: _createSearchCtrl,
+                                      searchInnerWidgetHeight: 52,
+                                      searchInnerWidget: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: TextField(
+                                          controller: _createSearchCtrl,
+                                          decoration: InputDecoration(
+                                            isDense: true,
+                                            hintText: 'Search by ID / Name',
+                                            prefixIcon: const Icon(Icons.search,
+                                                size: 18),
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      searchMatchFn: (item, searchValue) {
+                                        final value = item.value ?? '';
+                                        final opt = _patientOptions.firstWhere(
+                                          (p) => p.id == value,
+                                          orElse: () => _PatientOption(
+                                              id: value, label: value),
+                                        );
+                                        return opt.label.toLowerCase().contains(
+                                            searchValue.toLowerCase());
+                                      },
+                                    ),
+
+                                    onMenuStateChange: (isOpen) {
+                                      if (!isOpen) _createSearchCtrl.clear();
+                                    },
                                   ),
                             const SizedBox(height: 12),
                             const Text('Time',
