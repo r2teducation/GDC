@@ -713,6 +713,14 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
+  double? _calculateBMI() {
+    final h = double.tryParse(heightCtrl.text);
+    final w = double.tryParse(weightCtrl.text);
+    if (h == null || w == null || h == 0) return null;
+    final heightM = h / 100;
+    return double.parse((w / (heightM * heightM)).toStringAsFixed(1));
+  }
+
   // Create appointment dialog — now considers doctor busy slots from in-memory map
   Future<void> _showCreateForDate(BuildContext ctx, DateTime date) async {
     String? selectedPatientId;
@@ -778,10 +786,52 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
 
               try {
                 await _db.collection('appointments').add({
+                  // ---------------- BASIC ----------------
                   'patientId': selectedPatientId,
                   'appointmentDateTime': Timestamp.fromDate(combined),
                   'appointmentType': appointmentType,
                   'notes': notesCtrl.text.trim(),
+
+                  // ---------------- VITALS ----------------
+                  'vitals': {
+                    'bpSystolic': bpSysCtrl.text.trim(),
+                    'bpDiastolic': bpDiaCtrl.text.trim(),
+                    'heartRate': heartRate,
+                    'breathingRate': breathingRate,
+                    'heightCm': heightCtrl.text.trim(),
+                    'weightKg': weightCtrl.text.trim(),
+                    'bmi': _calculateBMI(), // optional helper
+                    'fbs': fbsCtrl.text.trim(),
+                    'rbs': rbsCtrl.text.trim(),
+                  },
+
+                  // ---------------- HEALTH CONDITIONS ----------------
+                  'healthConditions': healthConditions,
+
+                  // ---------------- ALLERGIES ----------------
+                  'allergies': {
+                    'drug': drugAllergy,
+                    'food': foodAllergy,
+                    'latex': latexAllergy,
+                    'notes': allergyNotesCtrl.text.trim(),
+                  },
+
+                  // ---------------- SURGICAL HISTORY ----------------
+                  'surgicalHistory': surgeryCtrl.text.trim(),
+
+                  // ---------------- DENTAL HISTORY ----------------
+                  'dentalHistory': {
+                    'conditions': dentalHistory,
+                    'notes': dentalNotesCtrl.text.trim(),
+                  },
+
+                  // ---------------- CONSENT ----------------
+                  'consent': {
+                    'given': consentGiven,
+                    'signatureRef': consentSignatureCtrl.text.trim(),
+                  },
+
+                  // ---------------- META ----------------
                   'createdAt': FieldValue.serverTimestamp(),
                   'updatedAt': FieldValue.serverTimestamp(),
                 });
@@ -835,8 +885,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                         //   const Text('Patient',
-                         //       style: TextStyle(fontWeight: FontWeight.w600)),
+                            //   const Text('Patient',
+                            //       style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 6),
                             _loadingPatients
                                 ? const LinearProgressIndicator()

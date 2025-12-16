@@ -30,6 +30,10 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   // ---------------- Doctor Notes ----------------
   final TextEditingController _doctorNotesCtrl = TextEditingController();
 
+  // ---------------- Patient Health Snapshot ----------------
+  Map<String, dynamic>? _patientHealthSnapshot;
+  bool _loadingHealthSnapshot = false;
+
   bool _saving = false;
 
   @override
@@ -73,8 +77,34 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     }
   }
 
-  void _onPatientSelected(String? v) {
-    setState(() => _selectedPatientId = v);
+  Future<void> _onPatientSelected(String? v) async {
+    setState(() {
+      _selectedPatientId = v;
+      _patientHealthSnapshot = null;
+    });
+
+    if (v == null) return;
+
+    setState(() => _loadingHealthSnapshot = true);
+
+    try {
+      final snap = await _db
+          .collection('appointments')
+          .where('patientId', isEqualTo: v)
+          .orderBy('appointmentDateTime', descending: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        setState(() {
+          _patientHealthSnapshot = snap.docs.first.data();
+        });
+      }
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _loadingHealthSnapshot = false);
+    }
   }
 
   // ======================================================
@@ -88,6 +118,270 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
     );
     if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Widget _patientHealthPanel() {
+    if (_loadingHealthSnapshot) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_patientHealthSnapshot == null) return const SizedBox.shrink();
+
+    final data = _patientHealthSnapshot!;
+    final vitals = data['vitals'] ?? {};
+    final health = data['healthConditions'] ?? {};
+    final allergies = data['allergies'] ?? {};
+    final dental = data['dentalHistory'] ?? {};
+    final consent = data['consent'] ?? {};
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16, bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Patient Health Snapshot (Latest Appointment)',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+
+          /// 🔥 Horizontal scroll
+          SizedBox(
+            height: 260, // 👈 controls panel height (adjust as needed)
+            child: 
+            
+            GridView(
+              physics: const BouncingScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, // 🔥 2 columns
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 2.6, // 🔥 card width/height balance
+              ),
+              children: [
+                _infoCard(
+                  'Vitals',
+                  _vitalsWidget(vitals),
+                ),
+                _infoCard('Health Conditions', _boolMapWidget(health)),
+                _infoCard('Allergies', _allergyWidget(allergies)),
+                _infoCard('Dental History', _dentalWidget(dental)),
+                _infoCard('Consent', _consentWidget(consent)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _boolMapWidget(Map<dynamic, dynamic> m) {
+    final items = m.entries.where((e) => e.value == true).toList();
+
+    if (items.isEmpty) {
+      return const Text(
+        'None reported',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items
+          .map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '• ${e.key}',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _vitalsWidget(Map<String, dynamic> vitals) {
+    Widget row(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600, // 🔥 bold label
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const Text(':  ', style: TextStyle(fontWeight: FontWeight.w600)),
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
+        row('HR', '${vitals['heartRate']}'),
+        row('BR', '${vitals['breathingRate']}'),
+        row(
+          'Ht/Wt',
+          '${vitals['heightCm']} / ${vitals['weightKg']}',
+        ),
+        row('BMI', '${vitals['bmi']}'),
+        row(
+          'FBS/RBS',
+          '${vitals['fbs']} / ${vitals['rbs']}',
+        ),
+      ],
+    );
+  }
+
+  Widget _infoCard(String title, Widget child) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16), // 🔥 rectangular & smooth
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child, // ✅ THIS FIXES EVERYTHING
+        ],
+      ),
+    );
+  }
+
+  Widget _consentWidget(Map<String, dynamic> consent) {
+    return Text(
+      consent['given'] == true ? 'Consent Given' : 'Not Given',
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        color: consent['given'] == true ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  String _vitalsText(Map v) {
+    return '''
+BP: ${v['bpSystolic']}/${v['bpDiastolic']}
+HR: ${v['heartRate']}
+BR: ${v['breathingRate']}
+Ht/Wt: ${v['heightCm']} / ${v['weightKg']}
+BMI: ${v['bmi']}
+FBS/RBS: ${v['fbs']} / ${v['rbs']}
+'''
+        .trim();
+  }
+
+  String _boolMapText(Map m) {
+    final list =
+        m.entries.where((e) => e.value == true).map((e) => e.key).toList();
+    return list.isEmpty ? 'None' : list.join(', ');
+  }
+
+  Widget _kv(String key, dynamic value) {
+    if (value == null || value.toString().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              key,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
+            ),
+          ),
+          const Text(' : '),
+          Expanded(
+            child: Text(
+              value.toString(),
+              style: const TextStyle(color: Color(0xFF111827)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _allergyWidget(Map<String, dynamic> allergies) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _kv('Drug', allergies['drug']),
+        _kv('Food', allergies['food']),
+        _kv('Latex', allergies['latex']),
+        if ((allergies['notes'] ?? '').toString().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Notes: ${allergies['notes']}',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _dentalWidget(Map<String, dynamic> dental) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _boolMapWidget(dental['conditions'] ?? {}),
+        if ((dental['notes'] ?? '').toString().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Notes: ${dental['notes']}',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+      ],
+    );
   }
 
   // ======================================================
@@ -285,6 +579,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   void _clearForm() {
     setState(() {
       _selectedPatientId = null;
+      _patientHealthSnapshot = null;
       _selectedDate = DateTime.now();
       _doctorNotesCtrl.clear();
       _problems.clear();
@@ -437,7 +732,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             ],
           ),
 
-          
+          // 🔥 PATIENT HEALTH CONDITIONS PANEL
+          _patientHealthPanel(),
 
           _sectionHeader('Chief Complaint'),
           for (int i = 0; i < _problems.length; i++)
