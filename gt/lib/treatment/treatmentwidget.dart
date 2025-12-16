@@ -131,146 +131,100 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     if (_patientHealthSnapshot == null) return const SizedBox.shrink();
 
     final data = _patientHealthSnapshot!;
-    final vitals = data['vitals'] ?? {};
-    final health = data['healthConditions'] ?? {};
-    final allergies = data['allergies'] ?? {};
-    final dental = data['dentalHistory'] ?? {};
-    final consent = data['consent'] ?? {};
+    final vitals = Map<String, dynamic>.from(data['vitals'] ?? {});
+    final health = Map<String, dynamic>.from(data['healthConditions'] ?? {});
+    final allergies = Map<String, dynamic>.from(data['allergies'] ?? {});
+    final dental = Map<String, dynamic>.from(data['dentalHistory'] ?? {});
+    final consent = Map<String, dynamic>.from(data['consent'] ?? {});
 
     return Container(
-      margin: const EdgeInsets.only(top: 16, bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Patient Health Snapshot (Latest Appointment)',
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-          ),
-          const SizedBox(height: 12),
-
-          /// 🔥 Horizontal scroll
-          SizedBox(
-            height: 260, // 👈 controls panel height (adjust as needed)
-            child: 
-            
-            GridView(
-              physics: const BouncingScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, // 🔥 2 columns
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 2.6, // 🔥 card width/height balance
-              ),
-              children: [
-                _infoCard(
-                  'Vitals',
-                  _vitalsWidget(vitals),
-                ),
-                _infoCard('Health Conditions', _boolMapWidget(health)),
-                _infoCard('Allergies', _allergyWidget(allergies)),
-                _infoCard('Dental History', _dentalWidget(dental)),
-                _infoCard('Consent', _consentWidget(consent)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _boolMapWidget(Map<dynamic, dynamic> m) {
-    final items = m.entries.where((e) => e.value == true).toList();
-
-    if (items.isEmpty) {
-      return const Text(
-        'None reported',
-        style: TextStyle(color: Colors.grey),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items
-          .map(
-            (e) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                '• ${e.key}',
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  Widget _vitalsWidget(Map<String, dynamic> vitals) {
-    Widget row(String label, String value) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 90,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600, // 🔥 bold label
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            const Text(':  ', style: TextStyle(fontWeight: FontWeight.w600)),
-            Expanded(
-              child: Text(
-                value,
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        row('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
-        row('HR', '${vitals['heartRate']}'),
-        row('BR', '${vitals['breathingRate']}'),
-        row(
-          'Ht/Wt',
-          '${vitals['heightCm']} / ${vitals['weightKg']}',
-        ),
-        row('BMI', '${vitals['bmi']}'),
-        row(
-          'FBS/RBS',
-          '${vitals['fbs']} / ${vitals['rbs']}',
-        ),
-      ],
-    );
-  }
-
-  Widget _infoCard(String title, Widget child) {
-    return Container(
+      margin: const EdgeInsets.only(top: 16, bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16), // 🔥 rectangular & smooth
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ===== HEADER (NON-SCROLLABLE) =====
+          const Text(
+            'Patient Health Snapshot (Latest Appointment)',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+
+          /// ===== SCROLLABLE CONTENT =====
+          SizedBox(
+            height: 280, // 👈 adjust as needed (250–350 works well)
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionText('Vitals', [
+                    _kv('BP',
+                        '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
+                    _kv('HR', '${vitals['heartRate']}'),
+                    _kv('BR', '${vitals['breathingRate']}'),
+                    _kv('Ht / Wt',
+                        '${vitals['heightCm']} / ${vitals['weightKg']}'),
+                    _kv('BMI', '${vitals['bmi']}'),
+                    _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
+                  ]),
+                  _sectionText(
+                    'Health Conditions',
+                    _trueKeys(health),
+                  ),
+                  _sectionText('Allergies', [
+                    _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
+                    _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
+                    _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
+                    _kv('Notes', allergies['notes'] ?? '--'),
+                  ]),
+                  _sectionText(
+                    'Dental History',
+                    [
+                      ..._trueKeys(dental['conditions'] ?? {}),
+                      _kv('Notes', dental['notes'] ?? '--'),
+                    ],
+                  ),
+                  _sectionText(
+                    'Consent',
+                    [
+                      Text(
+                        consent['given'] == true
+                            ? 'Consent Given'
+                            : 'Not Given',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: consent['given'] == true
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionText(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -279,50 +233,19 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 12),
-          child, // ✅ THIS FIXES EVERYTHING
+          const SizedBox(height: 6),
+          ...children,
         ],
       ),
     );
   }
 
-  Widget _consentWidget(Map<String, dynamic> consent) {
-    return Text(
-      consent['given'] == true ? 'Consent Given' : 'Not Given',
-      style: TextStyle(
-        fontWeight: FontWeight.w600,
-        color: consent['given'] == true ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  String _vitalsText(Map v) {
-    return '''
-BP: ${v['bpSystolic']}/${v['bpDiastolic']}
-HR: ${v['heartRate']}
-BR: ${v['breathingRate']}
-Ht/Wt: ${v['heightCm']} / ${v['weightKg']}
-BMI: ${v['bmi']}
-FBS/RBS: ${v['fbs']} / ${v['rbs']}
-'''
-        .trim();
-  }
-
-  String _boolMapText(Map m) {
-    final list =
-        m.entries.where((e) => e.value == true).map((e) => e.key).toList();
-    return list.isEmpty ? 'None' : list.join(', ');
-  }
-
-  Widget _kv(String key, dynamic value) {
-    if (value == null || value.toString().isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _kv(String key, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -330,58 +253,27 @@ FBS/RBS: ${v['fbs']} / ${v['rbs']}
             width: 90,
             child: Text(
               key,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF374151),
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
           const Text(' : '),
           Expanded(
-            child: Text(
-              value.toString(),
-              style: const TextStyle(color: Color(0xFF111827)),
-            ),
+            child: Text(value),
           ),
         ],
       ),
     );
   }
 
-  Widget _allergyWidget(Map<String, dynamic> allergies) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _kv('Drug', allergies['drug']),
-        _kv('Food', allergies['food']),
-        _kv('Latex', allergies['latex']),
-        if ((allergies['notes'] ?? '').toString().isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              'Notes: ${allergies['notes']}',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _dentalWidget(Map<String, dynamic> dental) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _boolMapWidget(dental['conditions'] ?? {}),
-        if ((dental['notes'] ?? '').toString().isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              'Notes: ${dental['notes']}',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-      ],
-    );
+  List<Widget> _trueKeys(Map<dynamic, dynamic> map) {
+    final keys =
+        map.entries.where((e) => e.value == true).map((e) => e.key).toList();
+    if (keys.isEmpty) {
+      return const [
+        Text('None', style: TextStyle(color: Colors.grey)),
+      ];
+    }
+    return keys.map((e) => Text('• $e')).toList();
   }
 
   // ======================================================
@@ -597,13 +489,6 @@ FBS/RBS: ${v['fbs']} / ${v['rbs']}
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      );
-
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, color: Color(0xFF111827))),
       );
 
   Widget _buildPatientOptionRow(_PatientOption p) {
