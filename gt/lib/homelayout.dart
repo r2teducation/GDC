@@ -94,11 +94,9 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             onOpenAppointmentSub3: () => setState(() => _route = 'appointment_sub_tab_3'),
             onOpenAppointmentSub4: () => setState(() => _route = 'appointment_sub_tab_4'),
 
-            // Treatment sub-tabs (now 4)
+            // Treatment sub-tabs (now 2)
             onOpenTreatmentSub1: () => setState(() => _route = 'treatment_sub_tab_1'),
-            onOpenTreatmentSub2: () => setState(() => _route = 'treatment_sub_tab_2'),
             onOpenTreatmentSub3: () => setState(() => _route = 'treatment_sub_tab_3'),
-            onOpenTreatmentSub4: () => setState(() => _route = 'treatment_sub_tab_4'),
 
             onOpenPaymentSub1: () => setState(() => _route = 'payment_sub_tab_1'),
             onOpenPaymentSub2: () => setState(() => _route = 'payment_sub_tab_2'),
@@ -208,9 +206,7 @@ class _Sidebar extends StatelessWidget {
 
   // now includes 4 treatment callbacks
   final VoidCallback onOpenTreatmentSub1;
-  final VoidCallback onOpenTreatmentSub2;
   final VoidCallback onOpenTreatmentSub3;
-  final VoidCallback onOpenTreatmentSub4;
 
   final VoidCallback onOpenPaymentSub1;
   final VoidCallback onOpenPaymentSub2;
@@ -236,9 +232,7 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenAppointmentSub3,
     required this.onOpenAppointmentSub4,
     required this.onOpenTreatmentSub1,
-    required this.onOpenTreatmentSub2,
     required this.onOpenTreatmentSub3,
-    required this.onOpenTreatmentSub4,
     required this.onOpenPaymentSub1,
     required this.onOpenPaymentSub2,
     required this.onOpenPharmacySub1,
@@ -351,9 +345,7 @@ class _Sidebar extends StatelessWidget {
                     children: [
                       // Friendly names for sub-items
                       _SideSubItem(label: 'Treatment', onTap: onOpenTreatmentSub1),
-                      _SideSubItem(label: 'Treatment Details', onTap: onOpenTreatmentSub2),
                       _SideSubItem(label: 'Follow Up', onTap: onOpenTreatmentSub3),
-                      _SideSubItem(label: 'Follow Up Details', onTap: onOpenTreatmentSub4),
                     ],
                   ),
 
@@ -391,9 +383,9 @@ class _Sidebar extends StatelessWidget {
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
-                        Text('Powered by Gutta © 2022', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
+                        Text('Powered by R2T © 2025', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
                         Spacer(),
-                        Text('v 1.1.2', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
+                        Text('v 1.1.0', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
                       ],
                     ),
                   ),
