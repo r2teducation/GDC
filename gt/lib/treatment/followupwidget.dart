@@ -39,9 +39,11 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   Map<String, dynamic>? _patientHealthSnapshot;
   bool _loadingHealthSnapshot = false;
 
-  bool _saving = false;
+  // ---------------- Previous Follow Ups ----------------
+  List<Map<String, dynamic>> _previousFollowUps = [];
+  bool _loadingFollowUps = false;
 
-  
+  bool _saving = false;
 
   @override
   void initState() {
@@ -146,6 +148,24 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     } finally {
       if (mounted) setState(() => _loadingChiefComplaint = false);
     }
+
+    setState(() => _loadingFollowUps = true);
+
+    try {
+      final followSnap = await _db
+          .collection('followups')
+          .where('patientId', isEqualTo: v)
+          .orderBy('treatmentDate', descending: true)
+          .get();
+
+      setState(() {
+        _previousFollowUps = followSnap.docs.map((d) => d.data()).toList();
+      });
+    } catch (_) {
+      setState(() => _previousFollowUps = []);
+    } finally {
+      if (mounted) setState(() => _loadingFollowUps = false);
+    }
   }
 
   // ======================================================
@@ -161,6 +181,65 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  Widget _previousFollowUpsPanel() {
+    if (_loadingFollowUps) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_previousFollowUps.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+        width: double.infinity,
+        child: Container(
+          margin: const EdgeInsets.only(top: 8, bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Previous Follow-Ups',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              for (final f in _previousFollowUps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
+                          (f['treatmentDate'] as Timestamp).toDate(),
+                        ),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blueGrey,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        f['doctorNotes'] ?? '--',
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                      const Divider(height: 20),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ));
+  }
+
   Widget _chiefComplaintSnapshotPanel() {
     if (_loadingChiefComplaint) {
       return const Padding(
@@ -173,47 +252,49 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      margin: const EdgeInsets.only(top: 16, bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Chief Complaint Snapshot at ${_chiefComplaintApptLabel ?? 'Last Treatment'}',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
+    return SizedBox(
+        width: double.infinity,
+        child: Container(
+          margin: const EdgeInsets.only(top: 16, bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
-          const SizedBox(height: 12),
-          for (final p in _chiefComplaintSnapshot)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Teeth: ${(p['teeth'] as List).join(', ')}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text('${p['type']}'),
-                  if ((p['notes'] ?? '').toString().isNotEmpty)
-                    Text(
-                      p['notes'],
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Chief Complaint Snapshot at ${_chiefComplaintApptLabel ?? 'Last Treatment'}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-        ],
-      ),
-    );
+              const SizedBox(height: 12),
+              for (final p in _chiefComplaintSnapshot)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Teeth: ${(p['teeth'] as List).join(', ')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text('${p['type']}'),
+                      if ((p['notes'] ?? '').toString().isNotEmpty)
+                        Text(
+                          p['notes'],
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ));
   }
 
   Widget _patientHealthPanel() {
@@ -719,6 +800,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           // 🔥 PATIENT HEALTH CONDITIONS PANEL
           _patientHealthPanel(),
           _chiefComplaintSnapshotPanel(),
+          _previousFollowUpsPanel(),
           _sectionHeader('Doctor Notes'),
           TextFormField(
             controller: _doctorNotesCtrl,
