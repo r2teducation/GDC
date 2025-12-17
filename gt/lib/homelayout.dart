@@ -12,7 +12,7 @@ import 'package:gt/appointment/patientcalendarwidget.dart';
 import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calendar
 
 // Treatment widgets
-import 'package:gt/treatment/createfollowupwidget.dart'; // <-- CreateFollowUpWidget (new)
+import 'package:gt/treatment/followupwidget.dart'; // <-- CreateFollowUpWidget (new)
 
 // Pharmacy: Medicine Stock
 import 'package:gt/pharmacy/medicinestockwidget.dart';
@@ -132,7 +132,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                     // treatment_sub_tab_2 => Treatment Details (placeholder)
                     'treatment_sub_tab_2' => const _PlaceholderScaffold(title: 'Treatment Details — in progress'),
                     // treatment_sub_tab_3 => Follow Up (CreateFollowUpWidget)
-                    'treatment_sub_tab_3' => const CreateFollowUpWidget(),
+                    'treatment_sub_tab_3' => const FollowUpWidget(),
                     // treatment_sub_tab_4 => Follow Up Details (placeholder)
                     'treatment_sub_tab_4' => const _PlaceholderScaffold(title: 'Follow Up Details — in progress'),
 

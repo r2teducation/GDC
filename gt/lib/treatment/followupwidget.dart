@@ -3,16 +3,20 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-class TreatmentWidget extends StatefulWidget {
-  const TreatmentWidget({super.key});
+class FollowUpWidget extends StatefulWidget {
+  const FollowUpWidget({super.key});
 
   @override
-  State<TreatmentWidget> createState() => _TreatmentWidgetState();
+  State<FollowUpWidget> createState() => _FollowUpWidgetState();
 }
 
-class _TreatmentWidgetState extends State<TreatmentWidget> {
+class _FollowUpWidgetState extends State<FollowUpWidget> {
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
+
+  // ---------------- Chief Complaint Snapshot ----------------
+  List<Map<String, dynamic>> _chiefComplaintSnapshot = [];
+  bool _loadingChiefComplaint = false;
 
   // ---------------- Date ----------------
   DateTime _selectedDate = DateTime.now();
@@ -23,6 +27,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   bool _loadingPatients = true;
   List<_PatientOption> _patientOptions = [];
   String? _selectedPatientId;
+  String? _chiefComplaintApptLabel;
 
   // ---------------- Problems ----------------
   final List<_ProblemRow> _problems = [];
@@ -35,6 +40,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   bool _loadingHealthSnapshot = false;
 
   bool _saving = false;
+
+  
 
   @override
   void initState() {
@@ -75,6 +82,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     } catch (e) {
       setState(() => _loadingPatients = false);
     }
+
+    // Load chief complaint snapshot
   }
 
   Future<void> _onPatientSelected(String? v) async {
@@ -105,6 +114,38 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     } finally {
       if (mounted) setState(() => _loadingHealthSnapshot = false);
     }
+
+    setState(() => _loadingChiefComplaint = true);
+
+    try {
+      final treatSnap = await _db
+          .collection('treatments')
+          .where('patientId', isEqualTo: v)
+          .limit(1)
+          .get();
+
+      if (treatSnap.docs.isNotEmpty) {
+        final data = treatSnap.docs.first.data();
+
+        final Timestamp? ts = data['treatmentDate'];
+        final DateTime? dt = ts?.toDate();
+
+        setState(() {
+          _chiefComplaintSnapshot =
+              List<Map<String, dynamic>>.from(data['problems'] ?? []);
+
+          _chiefComplaintApptLabel = dt != null
+              ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(dt)
+              : 'Unknown time';
+        });
+      } else {
+        _chiefComplaintSnapshot = [];
+      }
+    } catch (_) {
+      _chiefComplaintSnapshot = [];
+    } finally {
+      if (mounted) setState(() => _loadingChiefComplaint = false);
+    }
   }
 
   // ======================================================
@@ -118,6 +159,61 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
     );
     if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Widget _chiefComplaintSnapshotPanel() {
+    if (_loadingChiefComplaint) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_chiefComplaintSnapshot.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16, bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Chief Complaint Snapshot at ${_chiefComplaintApptLabel ?? 'Last Treatment'}',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final p in _chiefComplaintSnapshot)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Teeth: ${(p['teeth'] as List).join(', ')}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text('${p['type']}'),
+                  if ((p['notes'] ?? '').toString().isNotEmpty)
+                    Text(
+                      p['notes'],
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _patientHealthPanel() {
@@ -447,24 +543,17 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     setState(() => _saving = true);
 
     try {
-      await _db.collection('treatments').add({
+      await _db.collection('followups').add({
         'patientId': _selectedPatientId,
         'treatmentDate': Timestamp.fromDate(_selectedDate),
         'doctorNotes': _doctorNotesCtrl.text.trim(),
-        'problems': _problems
-            .map((p) => {
-                  'teeth': p.teeth,
-                  'type': p.type,
-                  'notes': p.notes,
-                })
-            .toList(),
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Treatment saved successfully')),
+        const SnackBar(content: Text('✅ Follow Up saved successfully')),
       );
 
       _clearForm();
@@ -524,7 +613,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Treatment',
+          const Text('Follow Up',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
 
           const SizedBox(height: 16),
@@ -629,25 +718,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
 
           // 🔥 PATIENT HEALTH CONDITIONS PANEL
           _patientHealthPanel(),
-
-          _sectionHeader('Chief Complaint'),
-          for (int i = 0; i < _problems.length; i++)
-            Card(
-              child: ListTile(
-                title: Text('Teeth: ${_problems[i].teeth.join(', ')}'),
-                subtitle: Text('${_problems[i].type}\n${_problems[i].notes}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => setState(() => _problems.removeAt(i)),
-                ),
-              ),
-            ),
-          ElevatedButton.icon(
-            onPressed: _openAddProblemDialog,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Problem'),
-          ),
-
+          _chiefComplaintSnapshotPanel(),
           _sectionHeader('Doctor Notes'),
           TextFormField(
             controller: _doctorNotesCtrl,
@@ -662,7 +733,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed: _saving ? null : _onSave,
-              child: const Text('Save Treatment'),
+              child: const Text('Save Follow Up'),
             ),
           ]),
         ]),
