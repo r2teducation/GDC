@@ -55,7 +55,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   int selected = 0;
 
   // Patient module should be uncollapsed by default
-  bool patientOpen = true;
+  bool patientOpen = false;
   bool appointmentOpen = false;
   bool treatmentOpen = false;
   bool paymentOpen = false;

@@ -35,7 +35,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   }
 
   // ======================================================
-  // Load patients for dropdown
+  // Load patients
   // ======================================================
   Future<void> _loadPatients() async {
     try {
@@ -62,7 +62,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   }
 
   // ======================================================
-  // Load payment history
+  // Load payments
   // ======================================================
   Future<void> _loadPayments(String patientId) async {
     setState(() {
@@ -88,22 +88,56 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   }
 
   // ======================================================
-  // UI
+  // BUILD
   // ======================================================
   @override
   Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: _buildContent(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Payment History',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 16),
-
-        // ---------------- Patient dropdown ----------------
+        const SizedBox(height: 24),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Patient Search',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+        ),
         if (_loadingPatients)
-          const LinearProgressIndicator()
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          )
         else
           DropdownButtonFormField2<String>(
             isExpanded: true,
@@ -122,7 +156,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               if (v != null) _loadPayments(v);
             },
 
-            // 🔥 SAME STYLE AS REFERENCE
+            // 🔥 MATCHES PatientDetailsWidget
             dropdownStyleData: DropdownStyleData(
               maxHeight: 280,
               decoration: BoxDecoration(
@@ -144,8 +178,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
             ),
             menuItemStyleData: const MenuItemStyleData(
               height: 44,
-              padding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
             dropdownSearchData: DropdownSearchData(
               searchController: _searchCtrl,
@@ -172,8 +205,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                 final value = item.value ?? '';
                 final opt = _patientOptions.firstWhere(
                   (p) => p.id == value,
-                  orElse: () =>
-                      _PatientOption(id: value, label: value),
+                  orElse: () => _PatientOption(id: value, label: value),
                 );
                 return opt.label
                     .toLowerCase()
@@ -184,34 +216,39 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               if (!isOpen) _searchCtrl.clear();
             },
           ),
-
-        const SizedBox(height: 16),
-
-        // ---------------- Payments list ----------------
+        const SizedBox(height: 24),
         if (_loadingPayments)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: LinearProgressIndicator(),
-          )
+          const LinearProgressIndicator()
         else if (_payments.isEmpty)
           const Text(
             'No payment history found.',
             style: TextStyle(color: Colors.grey),
           )
         else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _payments.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => _paymentTile(_payments[i]),
+          Container(
+            height: 320,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Scrollbar(
+              thumbVisibility: true,
+              radius: const Radius.circular(12),
+              child: ListView.separated(
+                itemCount: _payments.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (_, i) => _paymentTile(_payments[i]),
+              ),
+            ),
           ),
       ],
     );
   }
 
   // ======================================================
-  // Payment tile
+  // Payment Tile
   // ======================================================
   Widget _paymentTile(Map<String, dynamic> p) {
     final ts = p['paidAt'] as Timestamp?;
@@ -246,10 +283,11 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 130,
-              child: Text(k,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600)),
+              width: 140,
+              child: Text(
+                k,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
             const Text(' : '),
             Expanded(child: Text(v)),
@@ -265,20 +303,22 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16)),
+          borderRadius: BorderRadius.circular(16),
+        ),
       );
 
   Widget _patientRow(_PatientOption p) {
     final parts = p.label.split(RegExp(r'\s{2,}'));
     return Row(
       children: [
-        Text(parts.first,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(parts.first, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(width: 12),
         Expanded(
-            child: Text(
-                parts.length > 1 ? parts.last : '',
-                overflow: TextOverflow.ellipsis)),
+          child: Text(
+            parts.length > 1 ? parts.last : '',
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
