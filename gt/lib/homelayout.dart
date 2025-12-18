@@ -10,6 +10,8 @@ import 'package:gt/patient/patientsummarywidget.dart'; // <-- Patient Summary
 // Appointment widgets
 import 'package:gt/appointment/patientcalendarwidget.dart';
 import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calendar
+import 'package:gt/payment/paymenthistorywidget.dart';
+import 'package:gt/payment/paymentwidget.dart';
 
 // Treatment widgets
 import 'package:gt/treatment/followupwidget.dart'; // <-- CreateFollowUpWidget (new)
@@ -137,8 +139,8 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                     'treatment_sub_tab_4' => const _PlaceholderScaffold(title: 'Follow Up Details — in progress'),
 
                     // Payment
-                    'payment_sub_tab_1' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 1'),
-                    'payment_sub_tab_2' => const _PlaceholderScaffold(title: 'Payment — Sub Tab 2'),
+                    'payment_sub_tab_1' => const PaymentWidget(),
+                    'payment_sub_tab_2' => const PaymentHistoryWidget(),
 
                     // Pharmacy
                     // wired to MedicineStockWidget and label changed in sidebar
@@ -358,8 +360,8 @@ class _Sidebar extends StatelessWidget {
                     open: paymentOpen,
                     onToggle: onTogglePayment,
                     children: [
-                      _SideSubItem(label: 'payment_sub_tab_1', onTap: onOpenPaymentSub1),
-                      _SideSubItem(label: 'payment_sub_tab_2', onTap: onOpenPaymentSub2),
+                      _SideSubItem(label: 'Payment', onTap: onOpenPaymentSub1),
+                      _SideSubItem(label: 'Payment History', onTap: onOpenPaymentSub2),
                     ],
                   ),
 
