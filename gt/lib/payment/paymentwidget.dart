@@ -344,187 +344,186 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   // Medicine UI
   // ======================================================
   Widget _buildMedicineStock() {
-  if (_loadingMedicines) {
-    return const LinearProgressIndicator();
+    if (_loadingMedicines) {
+      return const LinearProgressIndicator();
+    }
+
+    final filtered = _medicineStock.where((m) {
+      final name = (m['medicineName'] ?? '').toString().toLowerCase();
+      return _medicineSearch.isEmpty || name.contains(_medicineSearch);
+    }).toList();
+
+    const double rowHeight = 56;
+    final double maxHeight =
+        filtered.length > 3 ? rowHeight * 3 : filtered.length * rowHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Medicine Stock'),
+        const SizedBox(height: 8),
+
+        // 🔍 Search
+        TextField(
+          controller: _medicineSearchCtrl,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: 'Search medicine',
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 🧾 Header
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Availability', 120),
+          ('', 80),
+        ]),
+
+        const SizedBox(height: 6),
+
+        // 📋 Rows
+        SizedBox(
+          height: maxHeight,
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final m = filtered[index];
+                final available = m['availableQty'] ?? 0;
+
+                return _tableRow(children: [
+                  SizedBox(width: 40, child: Text('${index + 1}')),
+                  Expanded(child: Text(m['medicineName'])),
+                  SizedBox(width: 120, child: Text('$available')),
+                  SizedBox(
+                    width: 80,
+                    child: TextButton(
+                      onPressed: () => _addToCart(m),
+                      child: const Text('Add'),
+                    ),
+                  ),
+                ]);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  final filtered = _medicineStock.where((m) {
-    final name = (m['medicineName'] ?? '').toString().toLowerCase();
-    return _medicineSearch.isEmpty || name.contains(_medicineSearch);
-  }).toList();
-
-  // Height calculation:
-  // Each row ≈ 64px, show max 3 rows
-  final double rowHeight = 64;
-  final double maxHeight = rowHeight * 3;
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _sectionTitle('Medicine Stock'),
-      const SizedBox(height: 8),
-
-      // 🔍 Search bar
-      TextField(
-        controller: _medicineSearchCtrl,
-        decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search, size: 18),
-          hintText: 'Search by medicine name',
-          filled: true,
-          fillColor: const Color(0xFFF8FAFC),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        ),
-      ),
-
-      const SizedBox(height: 16),
-
-      // 🧾 Table header (NON-SCROLLABLE)
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE6E6E6)),
-        ),
-        child: Row(
-          children: const [
-            SizedBox(
-              width: 40,
-              child: Text('S.No', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            Expanded(
-              child: Text('Medicine Name',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            SizedBox(
-              width: 120,
-              child: Text('Availability',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            SizedBox(
-              width: 140,
-              child: Text('Quantity',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            SizedBox(width: 80),
-          ],
-        ),
-      ),
-
-      const SizedBox(height: 8),
-
-      // 📋 SCROLLABLE ROWS (MAX 3 VISIBLE)
-      SizedBox(
-        height: filtered.length > 3 ? maxHeight : filtered.length * rowHeight,
-        child: Scrollbar(
-          thumbVisibility: true,
-          radius: const Radius.circular(8),
-          child: ListView.builder(
-            itemCount: filtered.length,
-            itemBuilder: (context, index) {
-              final m = filtered[index];
-              final id = m['id'];
-              final available = m['availableQty'] ?? 0;
-              final qty = _selectedQty[id] ?? 0;
-
-              return Container(
-                height: rowHeight,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(width: 40, child: Text('${index + 1}')),
-                    Expanded(child: Text(m['medicineName'])),
-                    SizedBox(width: 120, child: Text('$available')),
-
-                    // ➖ ➕ Quantity
-                    SizedBox(
-                      width: 140,
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon:
-                                const Icon(Icons.remove, size: 18),
-                            onPressed: qty > 0
-                                ? () => setState(
-                                    () => _selectedQty[id] = qty - 1)
-                                : null,
-                          ),
-                          Text('$qty'),
-                          IconButton(
-                            icon: const Icon(Icons.add, size: 18),
-                            onPressed: qty < available
-                                ? () => setState(
-                                    () => _selectedQty[id] = qty + 1)
-                                : null,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ➕ Add button
-                    SizedBox(
-                      width: 80,
-                      child: TextButton(
-                        onPressed:
-                            qty > 0 ? () => _addToCart(m) : null,
-                        child: const Text('Add'),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
   void _addToCart(Map<String, dynamic> m) {
-    final qty = _selectedQty[m['id']] ?? 0;
-    if (qty == 0) return;
+    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
 
-    _medicineCart.removeWhere((e) => e['medicineId'] == m['id']);
-    _medicineCart.add({
-      'medicineId': m['id'],
-      'medicineName': m['medicineName'],
-      'quantity': qty,
-      'price': null,
-    });
+    if (index >= 0) {
+      _medicineCart[index]['quantity'] += 1;
+    } else {
+      _medicineCart.add({
+        'medicineId': m['id'],
+        'medicineName': m['medicineName'],
+        'quantity': 1,
+        'price': null,
+      });
+    }
+
     setState(() {});
   }
 
   Widget _buildMedicineCart() {
     if (_medicineCart.isEmpty) return const SizedBox();
 
+    const double rowHeight = 56;
+    final double maxHeight = _medicineCart.length > 3
+        ? rowHeight * 3
+        : _medicineCart.length * rowHeight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionTitle('Medicine Cart'),
-        ..._medicineCart.map((c) => ListTile(
-              title: Text(c['medicineName']),
-              subtitle: Text('Qty: ${c['quantity']}'),
-              trailing: SizedBox(
-                width: 100,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(hintText: 'Price'),
-                  onChanged: (v) => c['price'] = double.tryParse(v),
-                ),
-              ),
-            )),
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Quantity', 140),
+          ('Price', 120),
+          ('', 60),
+        ]),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: maxHeight,
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              itemCount: _medicineCart.length,
+              itemBuilder: (context, index) {
+                final c = _medicineCart[index];
+
+                return _tableRow(children: [
+                  SizedBox(width: 40, child: Text('${index + 1}')),
+                  Expanded(child: Text(c['medicineName'])),
+
+                  // ➖ ➕ Quantity
+                  SizedBox(
+                    width: 140,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove, size: 18),
+                          onPressed: c['quantity'] > 1
+                              ? () {
+                                  setState(() => c['quantity']--);
+                                }
+                              : null,
+                        ),
+                        Text('${c['quantity']}'),
+                        IconButton(
+                          icon: const Icon(Icons.add, size: 18),
+                          onPressed: () {
+                            setState(() => c['quantity']++);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 💰 Price
+                  SizedBox(
+                    width: 120,
+                    child: TextField(
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        hintText: 'Price',
+                        isDense: true,
+                      ),
+                      onChanged: (v) => c['price'] = double.tryParse(v),
+                    ),
+                  ),
+
+                  // ❌ Remove
+                  SizedBox(
+                    width: 60,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        setState(() => _medicineCart.removeAt(index));
+                      },
+                    ),
+                  ),
+                ]);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton(
@@ -533,6 +532,40 @@ class _PaymentWidgetState extends State<PaymentWidget> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _tableHeader(List<(String, double?)> columns) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE6E6E6)),
+      ),
+      child: Row(
+        children: columns.map((c) {
+          return c.$2 == null
+              ? Expanded(
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)))
+              : SizedBox(
+                  width: c.$2!,
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)));
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _tableRow({required List<Widget> children}) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(children: children),
     );
   }
 
