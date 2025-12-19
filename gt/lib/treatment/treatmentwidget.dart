@@ -289,10 +289,30 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   // ======================================================
   // Add Problem Dialog (WORKING VERSION)
   // ======================================================
+  final Map<int, Map<String, TextEditingController>> rctInputs = {};
   void _openAddProblemDialog() {
     final Set<int> selectedTeeth = {};
     String? problemType;
     final TextEditingController notesCtrl = TextEditingController();
+
+    List<String> _getCanalsForTooth(int tooth) {
+      if ([11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43].contains(tooth)) {
+        return ['Single'];
+      }
+      if ([14, 24, 15, 25].contains(tooth)) {
+        return ['Buccal', 'Palatal'];
+      }
+      if ([34, 44, 35, 45].contains(tooth)) {
+        return ['Buccal', 'Lingual'];
+      }
+      if ([16, 26, 17, 27, 18, 28].contains(tooth)) {
+        return ['Palatal', 'Mesial', 'Distal'];
+      }
+      if ([36, 46, 37, 47, 38, 48].contains(tooth)) {
+        return ['Mesial', 'Distal', 'Lingual', 'Distal 2'];
+      }
+      return [];
+    }
 
     showDialog(
       context: context,
@@ -303,9 +323,18 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             return InkWell(
               onTap: () {
                 setStateDialog(() {
-                  selected
-                      ? selectedTeeth.remove(number)
-                      : selectedTeeth.add(number);
+                  if (selected) {
+                    selectedTeeth.remove(number);
+                    rctInputs.remove(number);
+                  } else {
+                    selectedTeeth.add(number);
+                    if (problemType == 'Root Canal') {
+                      final canals = _getCanalsForTooth(number);
+                      rctInputs[number] = {
+                        for (final c in canals) c: TextEditingController()
+                      };
+                    }
+                  }
                 });
               },
               child: Container(
@@ -394,6 +423,50 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                           .toList(),
                       onChanged: (v) => problemType = v,
                     ),
+                    if (problemType == 'Root Canal' && selectedTeeth.isNotEmpty)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: selectedTeeth.map((tooth) {
+                          final canals = rctInputs[tooth]!;
+                          final fields = [
+                            ...canals.entries.map((entry) {
+                              return TextFormField(
+                                controller: entry.value,
+                                decoration: _dec('${entry.key} (mm)'),
+                                keyboardType: TextInputType.number,
+                              );
+                            }),
+
+                            // 👇 ADD THIS
+                            TextFormField(
+                              decoration: _dec('Others (mm / notes)'),
+                            ),
+                          ];
+                          if (canals == null) return const SizedBox();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 16),
+                              Text(
+                                'Tooth $tooth – Canal Lengths',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              GridView.count(
+                                shrinkWrap: true,
+                                crossAxisCount: 3,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                physics: const NeverScrollableScrollPhysics(),
+                                childAspectRatio: 3.2,
+                                children: fields,
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: notesCtrl,
