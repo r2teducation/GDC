@@ -47,6 +47,15 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         _medicineSearch = _medicineSearchCtrl.text.trim().toLowerCase();
       });
     });
+
+    // 🔥 ADD THESE TWO
+    _amountCtrl.addListener(() {
+      setState(() {});
+    });
+
+    _detailsCtrl.addListener(() {
+      setState(() {});
+    });
   }
 
   @override
@@ -192,18 +201,19 @@ class _PaymentWidgetState extends State<PaymentWidget> {
 
       await batch.commit();
 
-      // ✅ SUCCESS
+      final successMessage = _paymentFor == 'Medicine'
+          ? '✅ Medicines Amount Received Successfully'
+          : '✅ Treatment Amount Received Successfully';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Payment & stock updated')),
+        SnackBar(content: Text(successMessage)),
       );
 
-      _amountCtrl.clear();
-      _detailsCtrl.clear();
-      _medicineCart.clear();
-      setState(() => _selectedPatientId = null);
-
       if (_paymentFor == 'Medicine') {
-        await _loadMedicines();
+        _resetForm(); // 🔥 FULL RESET
+      } else {
+        _amountCtrl.clear();
+        _detailsCtrl.clear();
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -344,6 +354,14 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                       .toList(),
                 ),
 
+                // const SizedBox(height: 16),
+
+                if (_paymentFor == 'Medicine') ...[
+                  _buildMedicineStock(),
+                  const SizedBox(height: 20),
+                  _buildMedicineCart(),
+                ],
+
                 const SizedBox(height: 16),
 
                 _label('Payment Mode'),
@@ -356,14 +374,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                           ))
                       .toList(),
                 ),
-
-                const SizedBox(height: 16),
-
-                if (_paymentFor == 'Medicine') ...[
-                  _buildMedicineStock(),
-                  const SizedBox(height: 20),
-                  _buildMedicineCart(),
-                ],
 
                 _label('Payment Amount'),
                 TextFormField(
@@ -502,6 +512,28 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     }
 
     setState(() {});
+  }
+
+  void _resetForm({bool resetPatient = true}) {
+    _amountCtrl.clear();
+    _detailsCtrl.clear();
+    _medicineSearchCtrl.clear();
+
+    _medicineCart.clear();
+    _medicineStock.clear();
+    _selectedQty.clear();
+
+    _medicineSearch = '';
+    _loadingMedicines = false;
+
+    setState(() {
+      _paymentFor = 'Treatment'; // 🔥 RESET TO DEFAULT
+      _paymentMode = 'Cash'; // 🔥 RESET TO DEFAULT
+
+      if (resetPatient) {
+        _selectedPatientId = null;
+      }
+    });
   }
 
   Widget _buildMedicineCart() {
