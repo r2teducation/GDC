@@ -104,8 +104,17 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   }
 
   bool get _canPay {
+    if (_saving || _selectedPatientId == null) return false;
+
+    // 🩺 Medicine payment
+    if (_paymentFor == 'Medicine') {
+      return _medicineCart.isNotEmpty &&
+          _medicineCart.every((c) => c['price'] != null);
+    }
+
+    // 💊 Treatment payment
     final amt = double.tryParse(_amountCtrl.text) ?? 0;
-    return _selectedPatientId != null && amt > 0 && !_saving;
+    return amt > 0;
   }
 
   // ======================================================
@@ -117,7 +126,61 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _saving = true);
 
     try {
-      await _db.collection('payments').add({
+      // 1️⃣ Validate stock first
+      if (_paymentFor == 'Medicine') {
+        for (final cartItem in _medicineCart) {
+          final doc = await _db
+              .collection('medicines')
+              .doc(cartItem['medicineId'])
+              .get();
+
+          if (!doc.exists) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text('Medicine not found: ${cartItem['medicineName']}'),
+              ),
+            );
+            return;
+          }
+
+          final currentQty =
+              (doc.data()?['quantityPurchased'] as num?)?.toInt() ?? 0;
+          final requiredQty = (cartItem['quantity'] as num).toInt();
+
+          if (currentQty < requiredQty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text('Insufficient stock for ${cartItem['medicineName']}'),
+              ),
+            );
+            return;
+          }
+        }
+      }
+
+      // 2️⃣ Batch write (WEB SAFE)
+      final batch = _db.batch();
+
+      if (_paymentFor == 'Medicine') {
+        for (final cartItem in _medicineCart) {
+          final ref = _db.collection('medicines').doc(cartItem['medicineId']);
+
+          final snap = await ref.get();
+          final currentQty =
+              (snap.data()?['quantityPurchased'] as num?)?.toInt() ?? 0;
+
+          batch.update(ref, {
+            'quantityPurchased':
+                currentQty - (cartItem['quantity'] as num).toInt(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      final paymentRef = _db.collection('payments').doc();
+      batch.set(paymentRef, {
         'patientId': _selectedPatientId,
         'paymentFor': _paymentFor,
         'paymentMode': _paymentMode,
@@ -127,17 +190,21 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         'paidAt': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('✅ Payment recorded')));
+      await batch.commit();
+
+      // ✅ SUCCESS
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Payment & stock updated')),
+      );
 
       _amountCtrl.clear();
       _detailsCtrl.clear();
       _medicineCart.clear();
-      _selectedQty.clear();
       setState(() => _selectedPatientId = null);
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('❌ Failed: $e')));
+
+      if (_paymentFor == 'Medicine') {
+        await _loadMedicines();
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -574,12 +641,16 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     for (final c in _medicineCart) {
       if (c['price'] == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Enter price for all medicines')));
+          const SnackBar(content: Text('Enter price for all medicines')),
+        );
         return;
       }
       total += c['price'] * c['quantity'];
     }
-    _amountCtrl.text = total.toStringAsFixed(2);
+
+    setState(() {
+      _amountCtrl.text = total.toStringAsFixed(2);
+    });
   }
 
   // ======================================================
