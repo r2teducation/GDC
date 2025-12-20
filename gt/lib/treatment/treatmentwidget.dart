@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class TreatmentWidget extends StatefulWidget {
@@ -30,6 +31,9 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   // ---------------- Doctor Notes ----------------
   final TextEditingController _doctorNotesCtrl = TextEditingController();
 
+  // ---------------- Treatment Amount ----------------
+  final TextEditingController _treatmentAmountCtrl = TextEditingController();
+
   // ---------------- Patient Health Snapshot ----------------
   Map<String, dynamic>? _patientHealthSnapshot;
   bool _loadingHealthSnapshot = false;
@@ -46,6 +50,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   void dispose() {
     _searchCtrl.dispose();
     _doctorNotesCtrl.dispose();
+    _treatmentAmountCtrl.dispose();
     super.dispose();
   }
 
@@ -523,6 +528,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       await _db.collection('treatments').add({
         'patientId': _selectedPatientId,
         'treatmentDate': Timestamp.fromDate(_selectedDate),
+        'treatmentAmount': double.parse(_treatmentAmountCtrl.text),
         'doctorNotes': _doctorNotesCtrl.text.trim(),
         'problems': _problems
             .map((p) => {
@@ -557,6 +563,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       _patientHealthSnapshot = null;
       _selectedDate = DateTime.now();
       _doctorNotesCtrl.clear();
+      _treatmentAmountCtrl.clear(); 
       _problems.clear();
     });
   }
@@ -721,6 +728,30 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             label: const Text('Add Problem'),
           ),
 
+          // 💰 Treatment Amount
+          _sectionHeader('Treatment Amount'),
+          TextFormField(
+            controller: _treatmentAmountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                RegExp(r'^\d+\.?\d{0,2}'),
+              ),
+            ],
+            decoration: _dec('Enter amount'),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'Please enter treatment amount';
+              }
+              final val = double.tryParse(v);
+              if (val == null || val <= 0) {
+                return 'Enter a valid amount';
+              }
+              return null;
+            },
+          ),
+
+// 📝 Doctor Notes
           _sectionHeader('Doctor Notes'),
           TextFormField(
             controller: _doctorNotesCtrl,
