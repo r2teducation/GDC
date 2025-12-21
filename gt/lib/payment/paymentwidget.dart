@@ -13,10 +13,6 @@ class PaymentWidget extends StatefulWidget {
 class _PaymentWidgetState extends State<PaymentWidget> {
   final _db = FirebaseFirestore.instance;
 
-  // ✅ ADD THESE (Medicine search)
-  final TextEditingController _medicineSearchCtrl = TextEditingController();
-  String _medicineSearch = '';
-
   // ---------------- Patient dropdown ----------------
   final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingPatients = true;
@@ -31,37 +27,15 @@ class _PaymentWidgetState extends State<PaymentWidget> {
 
   bool _saving = false;
 
-  // ---------------- Medicine stock & cart ----------------
-  bool _loadingMedicines = false;
-  List<Map<String, dynamic>> _medicineStock = [];
-  Map<String, int> _selectedQty = {};
-  List<Map<String, dynamic>> _medicineCart = [];
-
   @override
   void initState() {
     super.initState();
     _loadPatients();
-
-    _medicineSearchCtrl.addListener(() {
-      setState(() {
-        _medicineSearch = _medicineSearchCtrl.text.trim().toLowerCase();
-      });
-    });
-
-    // 🔥 ADD THESE TWO
-    _amountCtrl.addListener(() {
-      setState(() {});
-    });
-
-    _detailsCtrl.addListener(() {
-      setState(() {});
-    });
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _medicineSearchCtrl.dispose();
     _amountCtrl.dispose();
     _detailsCtrl.dispose();
     super.dispose();
@@ -78,10 +52,10 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         final data = doc.data();
         if (data['isActive'] == false) continue;
         final id = (data['patientId'] ?? doc.id).toString();
-        final name =
-            (data['fullName'] ?? '${data['firstName']} ${data['lastName']}')
-                .toString()
-                .trim();
+        final name = (data['fullName'] ??
+                '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
+            .toString()
+            .trim();
         opts.add(_PatientOption(id: id, label: '$id  $name'));
       }
       setState(() {
@@ -93,37 +67,9 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     }
   }
 
-  // ======================================================
-  // Load medicines
-  // ======================================================
-  Future<void> _loadMedicines() async {
-    setState(() => _loadingMedicines = true);
-
-    final snap = await _db.collection('medicines').get();
-    _medicineStock = snap.docs.map((d) {
-      final data = d.data();
-      return {
-        'id': d.id,
-        'medicineName': data['medicineName'],
-        'availableQty': data['quantityPurchased'],
-      };
-    }).toList();
-
-    setState(() => _loadingMedicines = false);
-  }
-
   bool get _canPay {
-    if (_saving || _selectedPatientId == null) return false;
-
-    // 🩺 Medicine payment
-    if (_paymentFor == 'Medicine') {
-      return _medicineCart.isNotEmpty &&
-          _medicineCart.every((c) => c['price'] != null);
-    }
-
-    // 💊 Treatment payment
     final amt = double.tryParse(_amountCtrl.text) ?? 0;
-    return amt > 0;
+    return _selectedPatientId != null && amt > 0 && !_saving;
   }
 
   // ======================================================
@@ -135,86 +81,25 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _saving = true);
 
     try {
-      // 1️⃣ Validate stock first
-      if (_paymentFor == 'Medicine') {
-        for (final cartItem in _medicineCart) {
-          final doc = await _db
-              .collection('medicines')
-              .doc(cartItem['medicineId'])
-              .get();
-
-          if (!doc.exists) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text('Medicine not found: ${cartItem['medicineName']}'),
-              ),
-            );
-            return;
-          }
-
-          final currentQty =
-              (doc.data()?['quantityPurchased'] as num?)?.toInt() ?? 0;
-          final requiredQty = (cartItem['quantity'] as num).toInt();
-
-          if (currentQty < requiredQty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text('Insufficient stock for ${cartItem['medicineName']}'),
-              ),
-            );
-            return;
-          }
-        }
-      }
-
-      // 2️⃣ Batch write (WEB SAFE)
-      final batch = _db.batch();
-
-      if (_paymentFor == 'Medicine') {
-        for (final cartItem in _medicineCart) {
-          final ref = _db.collection('medicines').doc(cartItem['medicineId']);
-
-          final snap = await ref.get();
-          final currentQty =
-              (snap.data()?['quantityPurchased'] as num?)?.toInt() ?? 0;
-
-          batch.update(ref, {
-            'quantityPurchased':
-                currentQty - (cartItem['quantity'] as num).toInt(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
-
-      final paymentRef = _db.collection('payments').doc();
-      batch.set(paymentRef, {
+      await _db.collection('payments').add({
         'patientId': _selectedPatientId,
         'paymentFor': _paymentFor,
         'paymentMode': _paymentMode,
         'amount': double.parse(_amountCtrl.text),
         'details': _detailsCtrl.text.trim(),
-        'medicineCart': _paymentFor == 'Medicine' ? _medicineCart : null,
         'paidAt': FieldValue.serverTimestamp(),
       });
 
-      await batch.commit();
-
-      final successMessage = _paymentFor == 'Medicine'
-          ? '✅ Medicines Amount Received Successfully'
-          : '✅ Treatment Amount Received Successfully';
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMessage)),
+        const SnackBar(content: Text('✅ Payment recorded')),
       );
 
-      if (_paymentFor == 'Medicine') {
-        _resetForm(); // 🔥 FULL RESET
-      } else {
-        _amountCtrl.clear();
-        _detailsCtrl.clear();
-      }
+      _amountCtrl.clear();
+      _detailsCtrl.clear();
+      setState(() => _selectedPatientId = null);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('❌ Failed: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -229,12 +114,12 @@ class _PaymentWidgetState extends State<PaymentWidget> {
       padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 920),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Container(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -246,9 +131,10 @@ class _PaymentWidgetState extends State<PaymentWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Make Payment',
-                    style:
-                        TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+                const Text(
+                  'Make Payment',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 24),
 
                 // ---------------- Patient dropdown ----------------
@@ -340,30 +226,21 @@ class _PaymentWidgetState extends State<PaymentWidget> {
 
                 const SizedBox(height: 20),
 
+                // ---------------- Payment For ----------------
                 _label('Payment For'),
                 Row(
                   children: ['Treatment', 'Medicine']
                       .map((e) => _radio(
                             group: _paymentFor,
                             value: e,
-                            onChanged: (v) {
-                              setState(() => _paymentFor = v);
-                              if (v == 'Medicine') _loadMedicines();
-                            },
+                            onChanged: (v) => setState(() => _paymentFor = v),
                           ))
                       .toList(),
                 ),
 
-                // const SizedBox(height: 16),
-
-                if (_paymentFor == 'Medicine') ...[
-                  _buildMedicineStock(),
-                  const SizedBox(height: 20),
-                  _buildMedicineCart(),
-                ],
-
                 const SizedBox(height: 16),
 
+                // ---------------- Payment Mode ----------------
                 _label('Payment Mode'),
                 Row(
                   children: ['Cash', 'UPI']
@@ -375,10 +252,12 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                       .toList(),
                 ),
 
+                const SizedBox(height: 16),
+
+                // ---------------- Amount ----------------
                 _label('Payment Amount'),
                 TextFormField(
                   controller: _amountCtrl,
-                  enabled: _paymentFor != 'Medicine',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
@@ -386,10 +265,12 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                         RegExp(r'^\d+\.?\d{0,2}')),
                   ],
                   decoration: _dec('Enter amount'),
+                  onChanged: (_) => setState(() {}),
                 ),
 
                 const SizedBox(height: 16),
 
+                // ---------------- Details ----------------
                 _label('Payment Details'),
                 TextFormField(
                   controller: _detailsCtrl,
@@ -404,8 +285,12 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                   child: ElevatedButton(
                     onPressed: _canPay ? _onPay : null,
                     child: _saving
-                        ? const CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white)
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
                         : const Text('Pay'),
                   ),
                 ),
@@ -418,274 +303,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   }
 
   // ======================================================
-  // Medicine UI
-  // ======================================================
-  Widget _buildMedicineStock() {
-    if (_loadingMedicines) {
-      return const LinearProgressIndicator();
-    }
-
-    final filtered = _medicineStock.where((m) {
-      final name = (m['medicineName'] ?? '').toString().toLowerCase();
-      return _medicineSearch.isEmpty || name.contains(_medicineSearch);
-    }).toList();
-
-    const double rowHeight = 56;
-    final double maxHeight =
-        filtered.length > 3 ? rowHeight * 3 : filtered.length * rowHeight;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('Medicine Stock'),
-        const SizedBox(height: 8),
-
-        // 🔍 Search
-        TextField(
-          controller: _medicineSearchCtrl,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search, size: 18),
-            hintText: 'Search medicine',
-            filled: true,
-            fillColor: const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // 🧾 Header
-        _tableHeader(const [
-          ('S.No', 40),
-          ('Medicine Name', null),
-          ('Availability', 120),
-          ('', 80),
-        ]),
-
-        const SizedBox(height: 6),
-
-        // 📋 Rows
-        SizedBox(
-          height: maxHeight,
-          child: Scrollbar(
-            thumbVisibility: true,
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final m = filtered[index];
-                final available = m['availableQty'] ?? 0;
-
-                return _tableRow(children: [
-                  SizedBox(width: 40, child: Text('${index + 1}')),
-                  Expanded(child: Text(m['medicineName'])),
-                  SizedBox(width: 120, child: Text('$available')),
-                  SizedBox(
-                    width: 80,
-                    child: TextButton(
-                      onPressed: () => _addToCart(m),
-                      child: const Text('Add'),
-                    ),
-                  ),
-                ]);
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _addToCart(Map<String, dynamic> m) {
-    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
-
-    if (index >= 0) {
-      _medicineCart[index]['quantity'] += 1;
-    } else {
-      _medicineCart.add({
-        'medicineId': m['id'],
-        'medicineName': m['medicineName'],
-        'quantity': 1,
-        'price': null,
-      });
-    }
-
-    setState(() {});
-  }
-
-  void _resetForm({bool resetPatient = true}) {
-    _amountCtrl.clear();
-    _detailsCtrl.clear();
-    _medicineSearchCtrl.clear();
-
-    _medicineCart.clear();
-    _medicineStock.clear();
-    _selectedQty.clear();
-
-    _medicineSearch = '';
-    _loadingMedicines = false;
-
-    setState(() {
-      _paymentFor = 'Treatment'; // 🔥 RESET TO DEFAULT
-      _paymentMode = 'Cash'; // 🔥 RESET TO DEFAULT
-
-      if (resetPatient) {
-        _selectedPatientId = null;
-      }
-    });
-  }
-
-  Widget _buildMedicineCart() {
-    if (_medicineCart.isEmpty) return const SizedBox();
-
-    const double rowHeight = 56;
-    final double maxHeight = _medicineCart.length > 3
-        ? rowHeight * 3
-        : _medicineCart.length * rowHeight;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('Medicine Cart'),
-        _tableHeader(const [
-          ('S.No', 40),
-          ('Medicine Name', null),
-          ('Quantity', 140),
-          ('Price', 120),
-          ('', 60),
-        ]),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: maxHeight,
-          child: Scrollbar(
-            thumbVisibility: true,
-            child: ListView.builder(
-              itemCount: _medicineCart.length,
-              itemBuilder: (context, index) {
-                final c = _medicineCart[index];
-
-                return _tableRow(children: [
-                  SizedBox(width: 40, child: Text('${index + 1}')),
-                  Expanded(child: Text(c['medicineName'])),
-
-                  // ➖ ➕ Quantity
-                  SizedBox(
-                    width: 140,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove, size: 18),
-                          onPressed: c['quantity'] > 1
-                              ? () {
-                                  setState(() => c['quantity']--);
-                                }
-                              : null,
-                        ),
-                        Text('${c['quantity']}'),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          onPressed: () {
-                            setState(() => c['quantity']++);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // 💰 Price
-                  SizedBox(
-                    width: 120,
-                    child: TextField(
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        hintText: 'Price',
-                        isDense: true,
-                      ),
-                      onChanged: (v) => c['price'] = double.tryParse(v),
-                    ),
-                  ),
-
-                  // ❌ Remove
-                  SizedBox(
-                    width: 60,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () {
-                        setState(() => _medicineCart.removeAt(index));
-                      },
-                    ),
-                  ),
-                ]);
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton(
-            onPressed: _calculateTotal,
-            child: const Text('Total'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tableHeader(List<(String, double?)> columns) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE6E6E6)),
-      ),
-      child: Row(
-        children: columns.map((c) {
-          return c.$2 == null
-              ? Expanded(
-                  child: Text(c.$1,
-                      style: const TextStyle(fontWeight: FontWeight.w600)))
-              : SizedBox(
-                  width: c.$2!,
-                  child: Text(c.$1,
-                      style: const TextStyle(fontWeight: FontWeight.w600)));
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _tableRow({required List<Widget> children}) {
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(children: children),
-    );
-  }
-
-  void _calculateTotal() {
-    double total = 0;
-    for (final c in _medicineCart) {
-      if (c['price'] == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter price for all medicines')),
-        );
-        return;
-      }
-      total += c['price'] * c['quantity'];
-    }
-
-    setState(() {
-      _amountCtrl.text = total.toStringAsFixed(2);
-    });
-  }
-
-  // ======================================================
   // UI helpers
   // ======================================================
   Widget _label(String text) => Padding(
@@ -693,11 +310,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         child: Text(text,
             style: const TextStyle(
                 fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-      );
-
-  Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
       );
 
   InputDecoration _dec(String hint) => InputDecoration(
@@ -709,10 +321,11 @@ class _PaymentWidgetState extends State<PaymentWidget> {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       );
 
-  Widget _radio(
-      {required String group,
-      required String value,
-      required ValueChanged<String> onChanged}) {
+  Widget _radio({
+    required String group,
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) {
     return Expanded(
       child: RadioListTile<String>(
         value: value,
@@ -720,29 +333,21 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         onChanged: (v) => onChanged(v!),
         title: Text(value),
         dense: true,
+        contentPadding: EdgeInsets.zero,
       ),
     );
   }
 
   Widget _patientRow(_PatientOption p) {
     final parts = p.label.split(RegExp(r'\s{2,}'));
-    return Row(children: [
-      Text(parts.first, style: const TextStyle(fontWeight: FontWeight.w600)),
-      const SizedBox(width: 12),
-      Expanded(child: Text(parts.last, overflow: TextOverflow.ellipsis)),
-    ]);
+    return Row(
+      children: [
+        Text(parts.first, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(width: 12),
+        Expanded(child: Text(parts.last, overflow: TextOverflow.ellipsis)),
+      ],
+    );
   }
-
-  Widget _searchBox() => Padding(
-        padding: const EdgeInsets.all(8),
-        child: TextField(
-          controller: _searchCtrl,
-          decoration: const InputDecoration(
-            hintText: 'Search by ID / Name',
-            prefixIcon: Icon(Icons.search),
-          ),
-        ),
-      );
 }
 
 // ======================================================

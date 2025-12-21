@@ -12,6 +12,14 @@ class TreatmentWidget extends StatefulWidget {
 }
 
 class _TreatmentWidgetState extends State<TreatmentWidget> {
+  // ---------------- Medicine Prescription ----------------
+  final TextEditingController _medicineSearchCtrl = TextEditingController();
+  String _medicineSearch = '';
+
+  bool _loadingMedicines = false;
+  List<Map<String, dynamic>> _medicineStock = [];
+  List<Map<String, dynamic>> _medicineCart = [];
+
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
@@ -44,6 +52,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   void initState() {
     super.initState();
     _loadPatientsForDropdown();
+    _loadMedicines(); // 👈 ADD
+
+    _medicineSearchCtrl.addListener(() {
+      setState(() {
+        _medicineSearch = _medicineSearchCtrl.text.trim().toLowerCase();
+      });
+    });
   }
 
   @override
@@ -51,7 +66,227 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     _searchCtrl.dispose();
     _doctorNotesCtrl.dispose();
     _treatmentAmountCtrl.dispose();
+    _medicineSearchCtrl.dispose(); // 👈 ADD
     super.dispose();
+  }
+
+  Future<void> _loadMedicines() async {
+    setState(() => _loadingMedicines = true);
+
+    final snap = await _db.collection('medicines').get();
+    _medicineStock = snap.docs.map((d) {
+      final data = d.data();
+      return {
+        'id': d.id,
+        'medicineName': data['medicineName'],
+        'availableQty': data['quantityPurchased'],
+      };
+    }).toList();
+
+    setState(() => _loadingMedicines = false);
+  }
+
+  Widget _sectionTitle(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+      );
+
+  Widget _buildMedicineStock() {
+    if (_loadingMedicines) {
+      return const LinearProgressIndicator();
+    }
+
+    final filtered = _medicineStock.where((m) {
+      final name = (m['medicineName'] ?? '').toString().toLowerCase();
+      return _medicineSearch.isEmpty || name.contains(_medicineSearch);
+    }).toList();
+
+    const double rowHeight = 56;
+    final double maxHeight =
+        filtered.length > 3 ? rowHeight * 3 : filtered.length * rowHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Medicine Stock'),
+        const SizedBox(height: 8),
+
+        // 🔍 Search
+        TextField(
+          controller: _medicineSearchCtrl,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: 'Search medicine',
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 🧾 Header
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Availability', 120),
+          ('', 80),
+        ]),
+
+        const SizedBox(height: 6),
+
+        // 📋 Rows
+        SizedBox(
+          height: maxHeight,
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final m = filtered[index];
+                final available = m['availableQty'] ?? 0;
+
+                return _tableRow(children: [
+                  SizedBox(width: 40, child: Text('${index + 1}')),
+                  Expanded(child: Text(m['medicineName'])),
+                  SizedBox(width: 120, child: Text('$available')),
+                  SizedBox(
+                    width: 80,
+                    child: TextButton(
+                      onPressed: () => _addToCart(m),
+                      child: const Text('Add'),
+                    ),
+                  ),
+                ]);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tableHeader(List<(String, double?)> columns) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE6E6E6)),
+      ),
+      child: Row(
+        children: columns.map((c) {
+          return c.$2 == null
+              ? Expanded(
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)))
+              : SizedBox(
+                  width: c.$2!,
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)));
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _tableRow({required List<Widget> children}) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(children: children),
+    );
+  }
+
+  void _addToCart(Map<String, dynamic> m) {
+    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
+
+    if (index >= 0) {
+      _medicineCart[index]['quantity'] += 1;
+    } else {
+      _medicineCart.add({
+        'medicineId': m['id'],
+        'medicineName': m['medicineName'],
+        'quantity': 1,
+        'price': null,
+      });
+    }
+
+    setState(() {});
+  }
+
+  Widget _buildMedicineCart() {
+    if (_medicineCart.isEmpty) return const SizedBox();
+
+    const double rowHeight = 56;
+    final double maxHeight = _medicineCart.length > 3
+        ? rowHeight * 3
+        : _medicineCart.length * rowHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Medicine Cart'),
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Quantity', 140),
+          ('', 60),
+        ]),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: maxHeight,
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              itemCount: _medicineCart.length,
+              itemBuilder: (context, index) {
+                final c = _medicineCart[index];
+
+                return _tableRow(children: [
+                  SizedBox(width: 40, child: Text('${index + 1}')),
+                  Expanded(child: Text(c['medicineName'])),
+
+                  // ➖ ➕ Quantity
+                  SizedBox(
+                    width: 140,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove, size: 18),
+                          onPressed: c['quantity'] > 1
+                              ? () => setState(() => c['quantity']--)
+                              : null,
+                        ),
+                        Text('${c['quantity']}'),
+                        IconButton(
+                          icon: const Icon(Icons.add, size: 18),
+                          onPressed: () => setState(() => c['quantity']++),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ❌ Remove
+                  SizedBox(
+                    width: 60,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () =>
+                          setState(() => _medicineCart.removeAt(index)),
+                    ),
+                  ),
+                ]);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ======================================================
@@ -530,6 +765,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
         'treatmentDate': Timestamp.fromDate(_selectedDate),
         'treatmentAmount': double.parse(_treatmentAmountCtrl.text),
         'doctorNotes': _doctorNotesCtrl.text.trim(),
+
         'problems': _problems
             .map((p) => {
                   'teeth': p.teeth,
@@ -537,6 +773,17 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                   'notes': p.notes,
                 })
             .toList(),
+
+        // 🧾 Medicine Prescription
+        'prescribedMedicinesCart': _medicineCart
+            .map((m) => {
+                  'medicineId': m['medicineId'],
+                  'medicineName': m['medicineName'],
+                  'quantity': m['quantity'],
+                })
+            .toList(),
+
+        'cartFulfilled': false, // 👈 IMPORTANT FLAG
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -563,7 +810,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       _patientHealthSnapshot = null;
       _selectedDate = DateTime.now();
       _doctorNotesCtrl.clear();
-      _treatmentAmountCtrl.clear(); 
+      _treatmentAmountCtrl.clear();
+
+      _medicineSearchCtrl.clear();
+      _medicineCart.clear();
+      _medicineStock.clear();
+      _medicineSearch = '';
+
       _problems.clear();
     });
   }
@@ -750,6 +1003,12 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
               return null;
             },
           ),
+
+          // 💊 Medicine Prescription
+          _sectionHeader('Medicine Prescription'),
+          _buildMedicineStock(),
+          const SizedBox(height: 12),
+          _buildMedicineCart(),
 
 // 📝 Doctor Notes
           _sectionHeader('Doctor Notes'),
