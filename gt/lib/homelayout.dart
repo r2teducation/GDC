@@ -145,27 +145,27 @@ class _TopNavBar extends StatelessWidget {
             active: currentRoute == 'dashboard',
             onTap: () => onNavigate('dashboard'),
           ),
-          _HoverMenuTab(
+          _ClickMenuTab(
             label: 'Patient',
             items: patientMenu,
             onNavigate: onNavigate,
           ),
-          _HoverMenuTab(
+          _ClickMenuTab(
             label: 'Appointment',
             items: appointmentMenu,
             onNavigate: onNavigate,
           ),
-          _HoverMenuTab(
+          _ClickMenuTab(
             label: 'Treatment',
             items: treatmentMenu,
             onNavigate: onNavigate,
           ),
-          _HoverMenuTab(
+          _ClickMenuTab(
             label: 'Payment',
             items: paymentMenu,
             onNavigate: onNavigate,
           ),
-          _HoverMenuTab(
+          _ClickMenuTab(
             label: 'Pharmacy',
             items: pharmacyMenu,
             onNavigate: onNavigate,
@@ -329,32 +329,28 @@ const pharmacyMenu = [
   _MenuItem('Medicine Stock', 'pharmacy_sub_tab_2'),
 ];
 
-class _HoverMenuTab extends StatefulWidget {
+class _ClickMenuTab extends StatefulWidget {
   final String label;
   final List<_MenuItem> items;
   final ValueChanged<String> onNavigate;
 
-  const _HoverMenuTab({
+  const _ClickMenuTab({
     required this.label,
     required this.items,
     required this.onNavigate,
   });
 
   @override
-  State<_HoverMenuTab> createState() => _HoverMenuTabState();
+  State<_ClickMenuTab> createState() => _ClickMenuTabState();
 }
 
-class _HoverMenuTabState extends State<_HoverMenuTab> {
+class _ClickMenuTabState extends State<_ClickMenuTab> {
   final GlobalKey _key = GlobalKey();
   bool _menuOpen = false;
 
   Future<void> _openMenu() async {
     if (_menuOpen) return;
-
     _menuOpen = true;
-
-    // 🔑 register this menu as active
-    HoverMenuController.register(_closeMenu);
 
     final box = _key.currentContext!.findRenderObject() as RenderBox;
     final pos = box.localToGlobal(Offset.zero);
@@ -397,28 +393,21 @@ class _HoverMenuTabState extends State<_HoverMenuTab> {
     );
 
     _menuOpen = false;
-    HoverMenuController.clear(_closeMenu);
 
     if (selected != null) {
       widget.onNavigate(selected);
     }
   }
 
-  void _closeMenu() {
-    if (_menuOpen) {
-      Navigator.of(context).pop();
-      _menuOpen = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => _openMenu(),
+    return InkWell(
+      key: _key,
+      onTap: _openMenu, // ✅ CLICK ONLY
+      borderRadius: BorderRadius.circular(8),
       child: _TopTab(
-        keyRef: _key,
         label: widget.label,
-        onTap: null, // hover-only
+        onTap: null, // handled here
       ),
     );
   }
