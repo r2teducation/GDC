@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 👈 REQUIRED for orientation lock
 import 'package:google_fonts/google_fonts.dart';
 import 'package:gt/login.dart';
 import 'package:provider/provider.dart';
@@ -7,17 +8,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔒 STEP 1: LOCK APP TO PORTRAIT MODE ONLY
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   await Firebase.initializeApp(
     options: const FirebaseOptions(
-        apiKey: "AIzaSyAPGf92bzIDo0xnLRk92UkZbc3b3SkP66U",
-        authDomain: "globaldentalclinic-a1b4b.firebaseapp.com",
-        projectId: "globaldentalclinic-a1b4b",
-        storageBucket: "globaldentalclinic-a1b4b.firebasestorage.app",
-        messagingSenderId: "18297162424",
-        appId: "1:18297162424:web:59ec6ad8603cd844d8024d",
-        measurementId: "G-NVTS4W0Q3J"),
+      apiKey: "AIzaSyAPGf92bzIDo0xnLRk92UkZbc3b3SkP66U",
+      authDomain: "globaldentalclinic-a1b4b.firebaseapp.com",
+      projectId: "globaldentalclinic-a1b4b",
+      storageBucket: "globaldentalclinic-a1b4b.firebasestorage.app",
+      messagingSenderId: "18297162424",
+      appId: "1:18297162424:web:59ec6ad8603cd844d8024d",
+      measurementId: "G-NVTS4W0Q3J",
+    ),
   );
+
   await ensureAuth();
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => GlobalData(),
@@ -39,14 +49,15 @@ class MainWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
     return MaterialApp(
-        theme: ThemeData(
-          textTheme: GoogleFonts.outfitTextTheme(textTheme).copyWith(
-            bodyMedium: GoogleFonts.outfit(textStyle: textTheme.bodyMedium),
-          ),
-        ),
-        debugShowCheckedModeBanner: false,
-        home: const NewLoginPage());
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        textTheme: GoogleFonts.outfitTextTheme(textTheme),
+      ),
+      home: const NewLoginPage(),
+    );
   }
 }
 
