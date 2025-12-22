@@ -50,6 +50,11 @@ dependencies:
 
   dropdown_button2: ^2.3.9
 
+  image_picker: ^1.0.7
+  firebase_storage: ^12.4.10
+  uuid: ^4.3.3
+  firebase_auth: ^5.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

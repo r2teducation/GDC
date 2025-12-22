@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:gt/login.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,12 +17,20 @@ void main() async {
         appId: "1:18297162424:web:59ec6ad8603cd844d8024d",
         measurementId: "G-NVTS4W0Q3J"),
   );
+  await ensureAuth();
   runApp(
     ChangeNotifierProvider(
       create: (context) => GlobalData(),
       child: const MainWidget(),
     ),
   );
+}
+
+Future<void> ensureAuth() async {
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser == null) {
+    await auth.signInAnonymously();
+  }
 }
 
 class MainWidget extends StatelessWidget {

@@ -3,6 +3,11 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart';
 
 class TreatmentWidget extends StatefulWidget {
   const TreatmentWidget({super.key});
@@ -13,6 +18,11 @@ class TreatmentWidget extends StatefulWidget {
 
 class _TreatmentWidgetState extends State<TreatmentWidget> {
   final ScrollController _medicineScrollCtrl = ScrollController();
+
+  // ---------------- Scans ----------------
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _selectedScans = [];
+  bool _uploadingScans = false;
 
   // ---------------- Medicine Prescription ----------------
   final TextEditingController _medicineSearchCtrl = TextEditingController();
@@ -71,6 +81,19 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     _medicineSearchCtrl.dispose(); // 👈 ADD
     _medicineScrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickScans() async {
+    final List<XFile> images = await _imagePicker.pickMultiImage(
+      imageQuality: 70, // 🔥 compress (VERY IMPORTANT)
+      maxWidth: 1600,
+    );
+
+    if (images.isEmpty) return;
+
+    setState(() {
+      _selectedScans.addAll(images);
+    });
   }
 
   Future<void> _loadMedicines() async {
@@ -756,8 +779,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   }
 
   // ======================================================
-  // Save
-  // ======================================================
+// Save
+// ======================================================
   Future<void> _onSave() async {
     FocusScope.of(context).unfocus();
 
@@ -773,7 +796,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     setState(() => _saving = true);
 
     try {
-      await _db.collection('treatments').add({
+      // 1️⃣ Save treatment meta to Firestore
+      final treatmentRef = await _db.collection('treatments').add({
         'patientId': _selectedPatientId,
         'treatmentDate': Timestamp.fromDate(_selectedDate),
         'treatmentAmount': double.parse(_treatmentAmountCtrl.text),
@@ -787,7 +811,6 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                 })
             .toList(),
 
-        // 🧾 Medicine Prescription
         'prescribedMedicinesCart': _medicineCart
             .map((m) => {
                   'medicineId': m['medicineId'],
@@ -796,9 +819,56 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                 })
             .toList(),
 
-        'cartFulfilled': false, // 👈 IMPORTANT FLAG
+        // 🔍 OPTIONAL scan indicators
+        'hasScans': _selectedScans.isNotEmpty,
+        'scanCount': _selectedScans.length,
+
+        'cartFulfilled': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // 2️⃣ Upload scans to Firebase Storage (PLATFORM SAFE)
+      if (_selectedScans.isNotEmpty) {
+        setState(() => _uploadingScans = true);
+
+        for (final scan in _selectedScans) {
+          final scanId = const Uuid().v4();
+
+          final storageRef = FirebaseStorage.instance
+              .ref()
+              .child('patients')
+              .child(_selectedPatientId!)
+              .child('treatments')
+              .child(treatmentRef.id)
+              .child('scans')
+              .child('$scanId.jpg');
+
+          String downloadUrl;
+
+          if (kIsWeb) {
+            // 🌐 WEB → upload bytes
+            final bytes = await scan.readAsBytes();
+            final uploadTask = await storageRef.putData(
+              bytes,
+              SettableMetadata(contentType: 'image/jpeg'),
+            );
+            downloadUrl = await uploadTask.ref.getDownloadURL();
+          } else {
+            // 📱 MOBILE / DESKTOP → upload file
+            final uploadTask = await storageRef.putFile(File(scan.path));
+            downloadUrl = await uploadTask.ref.getDownloadURL();
+          }
+
+          // 3️⃣ Save scan metadata under treatment
+          await treatmentRef.collection('scans').doc(scanId).set({
+            'imageUrl': downloadUrl,
+            'uploadedAt': FieldValue.serverTimestamp(),
+            'fileName': scan.name,
+          });
+        }
+
+        setState(() => _uploadingScans = false);
+      }
 
       if (!mounted) return;
 
@@ -831,6 +901,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       _medicineSearch = '';
 
       _problems.clear();
+      _selectedScans.clear();
+      _uploadingScans = false;
     });
   }
 
@@ -1027,6 +1099,60 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             label: const Text('Add Medicines'),
           ),
 
+// 🖼️ Scans
+          _sectionHeader('Scans'),
+
+          if (_selectedScans.isEmpty)
+            const Text(
+              'No scans uploaded',
+              style: TextStyle(color: Colors.grey),
+            ),
+
+          if (_selectedScans.isNotEmpty)
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: List.generate(_selectedScans.length, (index) {
+                final scan = _selectedScans[index];
+
+                return Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _scanPreview(scan),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedScans.removeAt(index);
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.close,
+                              size: 18, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+
+          const SizedBox(height: 8),
+
+          ElevatedButton.icon(
+            onPressed: _pickScans,
+            icon: const Icon(Icons.add_a_photo),
+            label: const Text('Add Scan'),
+          ),
+
 // 📝 Doctor Notes
           _sectionHeader('Doctor Notes'),
           TextFormField(
@@ -1041,13 +1167,21 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
             OutlinedButton(onPressed: _clearForm, child: const Text('Reset')),
             const SizedBox(width: 12),
             ElevatedButton(
-              onPressed: _saving ? null : _onSave,
-              child: const Text('Save Treatment'),
+              onPressed: (_saving || _uploadingScans) ? null : _onSave,
+              child: _uploadingScans
+                  ? const Text('Uploading scans...')
+                  : const Text('Save Treatment'),
             ),
           ]),
         ]),
       ),
     );
+  }
+
+  Widget _scanPreview(XFile scan) {
+    return kIsWeb
+        ? Image.network(scan.path, fit: BoxFit.cover)
+        : Image.file(File(scan.path), fit: BoxFit.cover);
   }
 
   void _openAddMedicineDialog() {
