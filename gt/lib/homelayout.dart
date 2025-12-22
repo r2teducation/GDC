@@ -12,6 +12,7 @@ import 'package:gt/appointment/patientcalendarwidget.dart';
 import 'package:gt/appointment/doctorcalendarwidget.dart'; // <-- Doctor Calendar
 import 'package:gt/payment/paymenthistorywidget.dart';
 import 'package:gt/payment/paymentwidget.dart';
+import 'package:gt/pharmacy/pharmacywidget.dart';
 
 // Treatment widgets
 import 'package:gt/treatment/followupwidget.dart'; // <-- CreateFollowUpWidget (new)
@@ -105,6 +106,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
             // Pharmacy: only one sub-tab remains (Medicine Stock)
             onOpenPharmacySub1: () => setState(() => _route = 'pharmacy_sub_tab_1'),
+            onOpenPharmacySub2: () => setState(() => _route = 'pharmacy_sub_tab_2'),
           ),
 
           // MAIN CONTENT AREA
@@ -143,8 +145,8 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                     'payment_sub_tab_2' => const PaymentHistoryWidget(),
 
                     // Pharmacy
-                    // wired to MedicineStockWidget and label changed in sidebar
-                    'pharmacy_sub_tab_1' => const MedicineStockWidget(),
+                    'pharmacy_sub_tab_1' => const PharmacyWidget(),
+                    'pharmacy_sub_tab_2' => const MedicineStockWidget(),
 
                     _ => const DashboardWidget(),
                   },
@@ -214,6 +216,7 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onOpenPaymentSub2;
 
   final VoidCallback onOpenPharmacySub1;
+  final VoidCallback onOpenPharmacySub2;
 
   const _Sidebar({
     required this.selected,
@@ -238,6 +241,7 @@ class _Sidebar extends StatelessWidget {
     required this.onOpenPaymentSub1,
     required this.onOpenPaymentSub2,
     required this.onOpenPharmacySub1,
+    required this.onOpenPharmacySub2,
   });
 
   @override
@@ -375,7 +379,8 @@ class _Sidebar extends StatelessWidget {
                     onToggle: onTogglePharmacy,
                     children: [
                       // renamed and wired to MedicineStockWidget
-                      _SideSubItem(label: 'Medicine Stock', onTap: onOpenPharmacySub1),
+                      _SideSubItem(label: 'Pharmacy', onTap: onOpenPharmacySub1),
+                      _SideSubItem(label: 'Medicine Stock', onTap: onOpenPharmacySub2),
                       // pharmacy_sub_tab_2 removed intentionally
                     ],
                   ),
