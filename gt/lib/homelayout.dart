@@ -9,6 +9,7 @@ import 'package:gt/patient/patientsummarywidget.dart';
 // Appointment
 import 'package:gt/appointment/patientcalendarwidget.dart';
 import 'package:gt/appointment/doctorcalendarwidget.dart';
+import 'package:gt/templatewidget.dart';
 
 // Treatment
 import 'package:gt/treatment/treatmentwidget.dart';
@@ -37,7 +38,7 @@ class HomeLayoutWidget extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF3F4F6),
-        fontFamily: 'SF Pro',
+      //  fontFamily: 'SF Pro',
         inputDecorationTheme: const InputDecorationTheme(
           isDense: true,
           border: OutlineInputBorder(
@@ -70,7 +71,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
     'dashboard': const DashboardWidget(),
     'patient_register': const PatientRegisterWidget(),
     'patient_details': const PatientDetailsWidget(),
-    'patient_history': const PatientSummaryWidget(),
+    'patient_history': const TemplateWidget(),
     'appointment_sub_tab_3': const PatientCalendarWidget(),
     'appointment_sub_tab_4': const DoctorCalendarWidget(),
     'treatment_sub_tab_1': const TreatmentWidget(),
