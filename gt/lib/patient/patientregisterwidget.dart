@@ -23,7 +23,8 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   // referred by (moved from Visits)
   String? _referredBy; // D / P / O / X
 
-  final TextEditingController _searchCtrl = TextEditingController(); // unused but kept if needed
+  final TextEditingController _searchCtrl =
+      TextEditingController(); // unused but kept if needed
   String? _gender; // M / F / O
 
   bool _loading = false;
@@ -226,7 +227,10 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
         'isActive': true,
       };
 
-      await _db.collection('patients').doc(patientId).set(data, SetOptions(merge: true));
+      await _db
+          .collection('patients')
+          .doc(patientId)
+          .set(data, SetOptions(merge: true));
 
       // show success and set patient id in the form
       ScaffoldMessenger.of(context).showSnackBar(
@@ -286,207 +290,248 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 920),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+    final size = MediaQuery.of(context).size;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F9),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ============== HEADER ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
                     "Register Patient",
                     style: const TextStyle(
-                      fontSize: 28,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF111827),
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  _label("Patient ID"),
-                  TextFormField(
-                    controller: _patientIdCtrl,
-                    readOnly: true,
-                    decoration: _dec("Auto-generated"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("First Name *"),
-                  TextFormField(
-                    controller: _firstNameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    validator: (v) => _nameVal(v, name: "First Name"),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
-                      SingleSpaceNameFormatter(),
-                      LengthLimitingTextInputFormatter(50),
-                    ],
-                    decoration: _dec("Enter first name"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Last Name *"),
-                  TextFormField(
-                    controller: _lastNameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    validator: (v) => _nameVal(v, name: "Last Name"),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
-                      SingleSpaceNameFormatter(),
-                      LengthLimitingTextInputFormatter(50),
-                    ],
-                    decoration: _dec("Enter last name"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Gender *"),
-                  DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _gender,
-                    decoration: _dec("Select gender"),
-                    items: const [
-                      DropdownMenuItem(value: 'M', child: Text("Male")),
-                      DropdownMenuItem(value: 'F', child: Text("Female")),
-                      DropdownMenuItem(value: 'O', child: Text("Other")),
-                    ],
-                    onChanged: (value) => setState(() => _gender = value),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return "Gender is required";
-                      return null;
-                    },
-                    dropdownStyleData: DropdownStyleData(
-                      maxHeight: 220,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 12,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                    ),
-                    menuItemStyleData: const MenuItemStyleData(
-                      height: 44,
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Age *"),
-                  TextFormField(
-                    controller: _ageCtrl,
-                    validator: _ageVal,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(3),
-                    ],
-                    decoration: _dec("Enter age"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Mobile Number *"),
-                  TextFormField(
-                    controller: _mobileCtrl,
-                    validator: _mobileVal,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                      MobileNumberFormatter(),
-                    ],
-                    decoration: _dec("10-digit mobile number"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Address *"),
-                  TextFormField(
-                    controller: _addressCtrl,
-                    validator: _addressVal,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: _dec("Enter address"),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _label("Referred By *"),
-                  DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _referredBy,
-                    decoration: _dec("Select source"),
-                    items: const [
-                      DropdownMenuItem(value: 'D', child: Text("Doctor")),
-                      DropdownMenuItem(value: 'P', child: Text("Patient")),
-                      DropdownMenuItem(value: 'O', child: Text("Online")),
-                      DropdownMenuItem(value: 'X', child: Text("Other")),
-                    ],
-                    onChanged: (v) => setState(() => _referredBy = v),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return "Referred By is required";
-                      return null;
-                    },
-                    dropdownStyleData: DropdownStyleData(
-                      maxHeight: 220,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 12,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                    ),
-                    menuItemStyleData: const MenuItemStyleData(
-                      height: 44,
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  ElevatedButton(
-                    onPressed: _loading ? null : _onSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF16A34A),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text("Create", style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+
+            // ============== BODY (SCROLLABLE) ==============
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label("Patient ID"),
+                      TextFormField(
+                        controller: _patientIdCtrl,
+                        readOnly: true,
+                        decoration: _dec("Auto-generated"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("First Name *"),
+                      TextFormField(
+                        controller: _firstNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => _nameVal(v, name: "First Name"),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z ]')),
+                          SingleSpaceNameFormatter(),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        decoration: _dec("Enter first name"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Last Name *"),
+                      TextFormField(
+                        controller: _lastNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => _nameVal(v, name: "Last Name"),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z ]')),
+                          SingleSpaceNameFormatter(),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        decoration: _dec("Enter last name"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Gender *"),
+                      DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: _gender,
+                        decoration: _dec("Select gender"),
+                        items: const [
+                          DropdownMenuItem(value: 'M', child: Text("Male")),
+                          DropdownMenuItem(value: 'F', child: Text("Female")),
+                          DropdownMenuItem(value: 'O', child: Text("Other")),
+                        ],
+                        onChanged: (value) => setState(() => _gender = value),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return "Gender is required";
+                          }
+                          return null;
+                        },
+                        dropdownStyleData: DropdownStyleData(
+                          maxHeight: 220,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 44,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Age *"),
+                      TextFormField(
+                        controller: _ageCtrl,
+                        validator: _ageVal,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(3),
+                        ],
+                        decoration: _dec("Enter age"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Mobile Number *"),
+                      TextFormField(
+                        controller: _mobileCtrl,
+                        validator: _mobileVal,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(11),
+                          MobileNumberFormatter(),
+                        ],
+                        decoration: _dec("10-digit mobile number"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Address *"),
+                      TextFormField(
+                        controller: _addressCtrl,
+                        validator: _addressVal,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: _dec("Enter address"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Referred By *"),
+                      DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: _referredBy,
+                        decoration: _dec("Select source"),
+                        items: const [
+                          DropdownMenuItem(value: 'D', child: Text("Doctor")),
+                          DropdownMenuItem(value: 'P', child: Text("Patient")),
+                          DropdownMenuItem(value: 'O', child: Text("Online")),
+                          DropdownMenuItem(value: 'X', child: Text("Other")),
+                        ],
+                        onChanged: (v) => setState(() => _referredBy = v),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return "Referred By is required";
+                          }
+                          return null;
+                        },
+                        dropdownStyleData: DropdownStyleData(
+                          maxHeight: 220,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 44,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ============== SOFT DIVIDER ==============
+            const Divider(
+              height: 1,
+              thickness: 0.6,
+              color: Color(0xFFEDEFF2),
+            ),
+
+            // ============== FOOTER ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: 32, // 👈 same as TemplateWidget
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end, // 👈 key change
+                  children: [
+                    InkWell(
+                      onTap: _loading ? null : _onSave,
+                      borderRadius: BorderRadius.circular(999),
+                      splashColor: Colors.black12,
+                      highlightColor: Colors.transparent,
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 26),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF111827),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Create',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -496,7 +541,8 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 /// Shared helpers (copy into same file or import from your shared utils)
 class MobileNumberFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
     String digits = newValue.text.replaceAll(' ', '');
     if (digits.length > 10) digits = digits.substring(0, 10);
     String formatted = '';
@@ -504,16 +550,20 @@ class MobileNumberFormatter extends TextInputFormatter {
       formatted += digits[i];
       if (i == 4 && digits.length > 5) formatted += ' ';
     }
-    return TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
+    return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length));
   }
 }
 
 class SingleSpaceNameFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
     String text = newValue.text;
     text = text.replaceAll(RegExp(r'\s+'), ' ');
     if (text.startsWith(' ')) text = text.trimLeft();
-    return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    return TextEditingValue(
+        text: text, selection: TextSelection.collapsed(offset: text.length));
   }
 }

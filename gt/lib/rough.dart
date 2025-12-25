@@ -1,369 +1,560 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 
-class TreatmentWidget extends StatefulWidget {
-  const TreatmentWidget({super.key});
+class PatientRegisterWidget extends StatefulWidget {
+  const PatientRegisterWidget({super.key});
 
   @override
-  State<TreatmentWidget> createState() => _TreatmentWidgetState();
+  State<PatientRegisterWidget> createState() => _PatientRegisterWidgetState();
 }
 
-class _TreatmentWidgetState extends State<TreatmentWidget> {
+class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   final _formKey = GlobalKey<FormState>();
+
+  final _patientIdCtrl = TextEditingController(text: 'Auto-generated');
+  final _firstNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _ageCtrl = TextEditingController();
+  final _mobileCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+
+  // referred by (moved from Visits)
+  String? _referredBy; // D / P / O / X
+
+  final TextEditingController _searchCtrl =
+      TextEditingController(); // unused but kept if needed
+  String? _gender; // M / F / O
+
+  bool _loading = false;
+
   final _db = FirebaseFirestore.instance;
-
-  // ---------------- Date ----------------
-  DateTime _selectedDate = DateTime.now();
-  final DateFormat _displayDate = DateFormat('yyyy-MM-dd');
-
-  // ---------------- Patient dropdown ----------------
-  final TextEditingController _searchCtrl = TextEditingController();
-  bool _loadingPatients = true;
-  List<_PatientOption> _patientOptions = [];
-  String? _selectedPatientId;
-
-  // ---------------- Patient Health Snapshot ----------------
-  Map<String, dynamic>? _patientHealthSnapshot;
-  bool _loadingHealthSnapshot = false;
-
-  // ---------------- Problems ----------------
-  final List<_ProblemRow> _problems = [];
-
-  // ---------------- Doctor Notes ----------------
-  final TextEditingController _doctorNotesCtrl = TextEditingController();
-
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPatientsForDropdown();
-  }
 
   @override
   void dispose() {
+    _patientIdCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _ageCtrl.dispose();
+    _mobileCtrl.dispose();
+    _addressCtrl.dispose();
     _searchCtrl.dispose();
-    _doctorNotesCtrl.dispose();
     super.dispose();
   }
 
-  // ======================================================
-  // Load patients
-  // ======================================================
-  Future<void> _loadPatientsForDropdown() async {
-    setState(() => _loadingPatients = true);
-    try {
-      final snap = await _db.collection('patients').orderBy('patientId').get();
-      final List<_PatientOption> opts = [];
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        if (data['isActive'] == false) continue;
-        final id = (data['patientId'] ?? doc.id).toString();
-        final fullName = (data['fullName'] ??
-                '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
-            .toString()
-            .trim();
-        final label = fullName.isNotEmpty ? '$id  $fullName' : id;
-        opts.add(_PatientOption(id: id, label: label));
-      }
-      setState(() {
-        _patientOptions = opts;
-        _loadingPatients = false;
-      });
-    } catch (_) {
-      setState(() => _loadingPatients = false);
+  // ---------------------------
+  // Helpers / Validations
+  // ---------------------------
+  String? _req(String? v, {String name = "This field"}) {
+    if (v == null || v.trim().isEmpty) return "$name is required";
+    return null;
+  }
+
+  String? _nameVal(String? v, {String name = "This field"}) {
+    if ((v ?? '').trim().isEmpty) return "$name is required";
+    final t = v!.trim();
+    if (!RegExp(r'^[A-Za-z ]+$').hasMatch(t)) {
+      return "$name must contain only alphabets and spaces";
+    }
+    if (t.length < 2) return "$name must be at least 2 characters";
+    if (t.length > 50) return "$name must be under 50 characters";
+    return null;
+  }
+
+  String? _ageVal(String? v) {
+    if (v == null || v.trim().isEmpty) return "Age is required";
+    final age = int.tryParse(v.trim());
+    if (age == null) return "Enter a valid number";
+    if (age < 1 || age > 120) return "Age must be between 1–120";
+    return null;
+  }
+
+  String? _mobileVal(String? v) {
+    if ((v ?? '').trim().isEmpty) return "Mobile number is required";
+    final digits = v!.replaceAll(' ', '');
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(digits)) {
+      return "Enter a valid 10-digit number";
+    }
+    return null;
+  }
+
+  String? _addressVal(String? v) {
+    if ((v ?? '').trim().isEmpty) return "Address is required";
+    final t = v!.trim();
+    if (t.length < 2) return "Address must be at least 2 characters";
+    if (t.length > 100) return "Address must be under 100 characters";
+    return null;
+  }
+
+  // gender helpers
+  String? _toCode(String? g) {
+    switch (g) {
+      case 'Male':
+        return 'M';
+      case 'Female':
+        return 'F';
+      case 'Other':
+        return 'O';
+    }
+    return null;
+  }
+
+  String _fromCode(String code) {
+    switch (code) {
+      case 'M':
+        return 'Male';
+      case 'F':
+        return 'Female';
+      case 'O':
+        return 'Other';
+      default:
+        return 'Other';
     }
   }
 
-  // ======================================================
-  // Patient selection + fetch latest appointment snapshot
-  // ======================================================
-  Future<void> _onPatientSelected(String? v) async {
-    setState(() {
-      _selectedPatientId = v;
-      _patientHealthSnapshot = null;
+  // ---------------------------
+  // Firestore helpers
+  // ---------------------------
+  Future<String> _generatePatientId() async {
+    final counterRef = _db.collection('counters').doc('patientCounter');
+
+    return await _db.runTransaction((tx) async {
+      final snap = await tx.get(counterRef);
+      int last = snap.exists ? (snap['lastNumber'] as int) : 0;
+      int newNum = last + 1;
+      tx.update(counterRef, {'lastNumber': newNum});
+      return "P-${newNum.toString().padLeft(5, '0')}";
     });
-
-    if (v == null) return;
-
-    setState(() => _loadingHealthSnapshot = true);
-
-    try {
-      final snap = await _db
-          .collection('appointments')
-          .where('patientId', isEqualTo: v)
-          .orderBy('appointmentDateTime', descending: true)
-          .limit(1)
-          .get();
-
-      if (snap.docs.isNotEmpty) {
-        setState(() {
-          _patientHealthSnapshot = snap.docs.first.data();
-        });
-      }
-    } catch (_) {
-      // ignore silently
-    } finally {
-      if (mounted) setState(() => _loadingHealthSnapshot = false);
-    }
   }
 
-  // ======================================================
-  // Save
-  // ======================================================
+  Future<bool> _checkDuplicateId(String patientId) async {
+    final doc = await _db.collection('patients').doc(patientId).get();
+    return doc.exists;
+  }
+
+  Future<String?> _findDuplicateComposite(
+    String firstName,
+    String lastName,
+    String mobileFormatted,
+  ) async {
+    final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
+    final key =
+        '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+
+    final snap = await _db
+        .collection('patients')
+        .where('compositeKey', isEqualTo: key)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first.id;
+  }
+
+  // ---------------------------
+  // Save (create)
+  // ---------------------------
   Future<void> _onSave() async {
     FocusScope.of(context).unfocus();
-
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedPatientId == null) {
+    if (_gender == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a patient')),
+        const SnackBar(content: Text("Please select gender")),
+      );
+      return;
+    }
+    if (_referredBy == null || _referredBy!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select Referred By")),
       );
       return;
     }
 
-    setState(() => _saving = true);
+    setState(() => _loading = true);
 
     try {
-      await _db.collection('treatments').add({
-        'patientId': _selectedPatientId,
-        'treatmentDate': Timestamp.fromDate(_selectedDate),
-        'doctorNotes': _doctorNotesCtrl.text.trim(),
-        'problems': _problems
-            .map((p) => {
-                  'teeth': p.teeth,
-                  'type': p.type,
-                  'notes': p.notes,
-                })
-            .toList(),
+      final firstName = _firstNameCtrl.text.trim();
+      final lastName = _lastNameCtrl.text.trim();
+      final mobileFormatted = _mobileCtrl.text;
+      final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
+
+      if (!RegExp(r'^[0-9]{10}$').hasMatch(mobileRaw)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Enter a valid 10-digit number")),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      final compositeKey =
+          '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+
+      final dupId =
+          await _findDuplicateComposite(firstName, lastName, mobileFormatted);
+
+      if (dupId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Patient already exists with ID $dupId (same name & mobile)')),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
+      String patientId = await _generatePatientId();
+      if (await _checkDuplicateId(patientId)) {
+        throw Exception("Duplicate Patient ID generated. Try again.");
+      }
+
+      final fullName = "$firstName $lastName";
+
+      final data = {
+        'patientId': patientId,
+        'firstName': firstName,
+        'lastName': lastName,
+        'fullName': fullName,
+        'gender': _fromCode(_gender!),
+        'age': int.parse(_ageCtrl.text.trim()),
+        'mobile': mobileRaw,
+        'address': _addressCtrl.text.trim(),
+        'referredBy': _referredBy,
+        'compositeKey': compositeKey,
+        'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
+        'isActive': true,
+      };
+
+      await _db
+          .collection('patients')
+          .doc(patientId)
+          .set(data, SetOptions(merge: true));
+
+      // show success and set patient id in the form
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Patient Created')),
+      );
+
+      setState(() {
+        _patientIdCtrl.text = patientId;
       });
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Treatment saved successfully')),
-      );
-
-      _clearForm();
+      // optionally clear form but keep the id visible — here we keep fields
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Failed to save: $e')),
+        SnackBar(content: Text("Error: $e")),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _clearForm() {
-    setState(() {
-      _selectedPatientId = null;
-      _patientHealthSnapshot = null;
-      _selectedDate = DateTime.now();
-      _doctorNotesCtrl.clear();
-      _problems.clear();
-    });
+  // ---------------------------
+  // UI helpers
+  // ---------------------------
+  InputDecoration _dec(String hint) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+      ),
+    );
   }
 
-  // ======================================================
-  // UI helpers
-  // ======================================================
-  InputDecoration _dec(String hint) => InputDecoration(
-        isDense: true,
-        hintText: hint,
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      );
-
-  Widget _buildPatientOptionRow(_PatientOption p) {
-    final parts = p.label.split(RegExp(r'\s{2,}'));
-    return Row(
-      children: [
-        Text(parts.first, style: const TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            parts.length > 1 ? parts.last : '',
-            overflow: TextOverflow.ellipsis,
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF111827),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
           ),
         ),
-      ],
-    );
-  }
-
-  // ======================================================
-  // Patient Health Panel (READ ONLY)
-  // ======================================================
-  Widget _patientHealthPanel() {
-    if (_loadingHealthSnapshot) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: LinearProgressIndicator(),
       );
-    }
 
-    if (_patientHealthSnapshot == null) return const SizedBox.shrink();
-
-    final health = _patientHealthSnapshot!['healthConditions'] as Map?;
-    final allergies = _patientHealthSnapshot!['allergyNotes'] ?? '';
-    final vitals = _patientHealthSnapshot!;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 16, bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF22C55E)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Patient Health Conditions',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-
-          if (health != null)
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: health.entries
-                  .where((e) => e.value == true)
-                  .map((e) => Chip(
-                        label: Text(e.key),
-                        backgroundColor: Colors.green.shade100,
-                      ))
-                  .toList(),
-            ),
-
-          if (allergies.toString().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Allergies: $allergies',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ======================================================
-  // Build
-  // ======================================================
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Treatment',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+    final size = MediaQuery.of(context).size;
 
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField2<String>(
-                  isExpanded: true,
-                  value: _selectedPatientId,
-                  decoration: _dec("Select patient"),
-                  items: _patientOptions
-                      .map((p) => DropdownMenuItem(
-                            value: p.id,
-                            child: _buildPatientOptionRow(p),
-                          ))
-                      .toList(),
-                  onChanged: _onPatientSelected,
-                  validator: (v) =>
-                      v == null ? 'Please select a patient' : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: () async {
-                  final d = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
-                    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                  );
-                  if (d != null) setState(() => _selectedDate = d);
-                },
-                child: Text(_displayDate.format(_selectedDate)),
-              ),
-            ],
-          ),
-
-          // 🔥 PATIENT HEALTH CONDITIONS PANEL
-          _patientHealthPanel(),
-
-          _sectionHeader('Chief Complaint'),
-          for (int i = 0; i < _problems.length; i++)
-            Card(
-              child: ListTile(
-                title: Text('Teeth: ${_problems[i].teeth.join(', ')}'),
-                subtitle: Text('${_problems[i].type}\n${_problems[i].notes}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => setState(() => _problems.removeAt(i)),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F9),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ============== HEADER ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Register Patient",
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
                 ),
               ),
             ),
 
-          ElevatedButton.icon(
-            onPressed: () {}, // unchanged dialog logic
-            icon: const Icon(Icons.add),
-            label: const Text('Add Problem'),
-          ),
-
-          _sectionHeader('Doctor Notes'),
-          TextFormField(
-            controller: _doctorNotesCtrl,
-            maxLines: 5,
-            decoration: _dec('Doctor notes'),
-          ),
-
-          const SizedBox(height: 24),
-
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            OutlinedButton(onPressed: _clearForm, child: const Text('Reset')),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: _saving ? null : _onSave,
-              child: const Text('Save Treatment'),
+            // ============== BODY (SCROLLABLE) ==============
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label("Patient ID"),
+                      TextFormField(
+                        controller: _patientIdCtrl,
+                        readOnly: true,
+                        decoration: _dec("Auto-generated"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("First Name *"),
+                      TextFormField(
+                        controller: _firstNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => _nameVal(v, name: "First Name"),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z ]')),
+                          SingleSpaceNameFormatter(),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        decoration: _dec("Enter first name"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Last Name *"),
+                      TextFormField(
+                        controller: _lastNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => _nameVal(v, name: "Last Name"),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z ]')),
+                          SingleSpaceNameFormatter(),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        decoration: _dec("Enter last name"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Gender *"),
+                      DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: _gender,
+                        decoration: _dec("Select gender"),
+                        items: const [
+                          DropdownMenuItem(value: 'M', child: Text("Male")),
+                          DropdownMenuItem(value: 'F', child: Text("Female")),
+                          DropdownMenuItem(value: 'O', child: Text("Other")),
+                        ],
+                        onChanged: (value) => setState(() => _gender = value),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return "Gender is required";
+                          }
+                          return null;
+                        },
+                        dropdownStyleData: DropdownStyleData(
+                          maxHeight: 220,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 44,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Age *"),
+                      TextFormField(
+                        controller: _ageCtrl,
+                        validator: _ageVal,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(3),
+                        ],
+                        decoration: _dec("Enter age"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Mobile Number *"),
+                      TextFormField(
+                        controller: _mobileCtrl,
+                        validator: _mobileVal,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(11),
+                          MobileNumberFormatter(),
+                        ],
+                        decoration: _dec("10-digit mobile number"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Address *"),
+                      TextFormField(
+                        controller: _addressCtrl,
+                        validator: _addressVal,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: _dec("Enter address"),
+                      ),
+                      const SizedBox(height: 16),
+                      _label("Referred By *"),
+                      DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: _referredBy,
+                        decoration: _dec("Select source"),
+                        items: const [
+                          DropdownMenuItem(value: 'D', child: Text("Doctor")),
+                          DropdownMenuItem(value: 'P', child: Text("Patient")),
+                          DropdownMenuItem(value: 'O', child: Text("Online")),
+                          DropdownMenuItem(value: 'X', child: Text("Other")),
+                        ],
+                        onChanged: (v) => setState(() => _referredBy = v),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return "Referred By is required";
+                          }
+                          return null;
+                        },
+                        dropdownStyleData: DropdownStyleData(
+                          maxHeight: 220,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 44,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ]),
-        ]),
+
+            // ============== SOFT DIVIDER ==============
+            const Divider(
+              height: 1,
+              thickness: 0.6,
+              color: Color(0xFFEDEFF2),
+            ),
+
+            // ============== FOOTER ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 32),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    onTap: _loading ? null : _onSave,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 30),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              "Create",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _sectionHeader(String title) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-      );
 }
 
-// ======================================================
-class _ProblemRow {
-  final List<int> teeth;
-  final String type;
-  final String notes;
-  _ProblemRow({required this.teeth, required this.type, required this.notes});
+/// Shared helpers (copy into same file or import from your shared utils)
+class MobileNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    String digits = newValue.text.replaceAll(' ', '');
+    if (digits.length > 10) digits = digits.substring(0, 10);
+    String formatted = '';
+    for (int i = 0; i < digits.length; i++) {
+      formatted += digits[i];
+      if (i == 4 && digits.length > 5) formatted += ' ';
+    }
+    return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length));
+  }
 }
 
-class _PatientOption {
-  final String id;
-  final String label;
-  _PatientOption({required this.id, required this.label});
+class SingleSpaceNameFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    String text = newValue.text;
+    text = text.replaceAll(RegExp(r'\s+'), ' ');
+    if (text.startsWith(' ')) text = text.trimLeft();
+    return TextEditingValue(
+        text: text, selection: TextSelection.collapsed(offset: text.length));
+  }
 }
