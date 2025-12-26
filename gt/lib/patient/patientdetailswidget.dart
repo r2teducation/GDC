@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gt/patient/patienteditwidget.dart';
 
 class PatientDetailsWidget extends StatefulWidget {
   const PatientDetailsWidget({super.key});
@@ -133,7 +134,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
             ),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(color: Color(0xFF111827))),
+            child:
+                Text(value, style: const TextStyle(color: Color(0xFF111827))),
           ),
         ],
       ),
@@ -146,14 +148,21 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
   void _startEdit() {
     if (_patientData == null) return;
     // populate controllers
-    _patientIdCtrl.text = (_patientData!['patientId'] ?? _selectedPatientId) ?? '';
+    _patientIdCtrl.text =
+        (_patientData!['patientId'] ?? _selectedPatientId) ?? '';
     _firstNameCtrl.text = (_patientData!['firstName'] ?? '');
     _lastNameCtrl.text = (_patientData!['lastName'] ?? '');
     _ageCtrl.text = (_patientData!['age']?.toString() ?? '');
     _mobileCtrl.text = (_patientData!['mobile'] ?? '');
     _addressCtrl.text = (_patientData!['address'] ?? '');
     final genderStr = (_patientData!['gender'] ?? '');
-    _gender = (genderStr == 'Male') ? 'M' : (genderStr == 'Female') ? 'F' : (genderStr == 'Other') ? 'O' : null;
+    _gender = (genderStr == 'Male')
+        ? 'M'
+        : (genderStr == 'Female')
+            ? 'F'
+            : (genderStr == 'Other')
+                ? 'O'
+                : null;
     _referredBy = (_patientData!['referredBy'] as String?) ?? null;
 
     setState(() {
@@ -235,8 +244,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
       return;
     }
     if (_referredBy == null || _referredBy!.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Please select Referred By")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please select Referred By")));
       return;
     }
 
@@ -254,7 +263,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
           firstName, lastName, mobileFormatted, patientId);
       if (dup != null) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Another patient exists with same name & mobile (ID $dup)')));
+            content: Text(
+                'Another patient exists with same name & mobile (ID $dup)')));
         setState(() => _saving = false);
         return;
       }
@@ -267,7 +277,11 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
         'firstName': firstName,
         'lastName': lastName,
         'fullName': '$firstName $lastName',
-        'gender': (_gender == 'M') ? 'Male' : (_gender == 'F') ? 'Female' : 'Other',
+        'gender': (_gender == 'M')
+            ? 'Male'
+            : (_gender == 'F')
+                ? 'Female'
+                : 'Other',
         'age': int.parse(_ageCtrl.text.trim()),
         'mobile': mobileRaw,
         'address': _addressCtrl.text.trim(),
@@ -336,39 +350,6 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
             const SizedBox(height: 8),
           ],
         ),
-
-        // Edit button - top-right
-        Positioned(
-          right: 0,
-          top: 0,
-          child: Material(
-            elevation: 6,
-            borderRadius: BorderRadius.circular(12),
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _startEdit,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 4))
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.edit_rounded, size: 18, color: Color(0xFF374151)),
-                    SizedBox(width: 8),
-                    Text("Edit", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -386,19 +367,172 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 920),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 16, offset: const Offset(0, 4))]),
-            child: _editing ? _buildEditForm() : _buildView(),
-          ),
+    final size = MediaQuery.of(context).size;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F9),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ============== HEADER ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Patient Details",
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // ============== BODY (SCROLLABLE) ==============
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _editing ? _buildEditForm() : _buildView(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ============== SOFT DIVIDER ==============
+            const Divider(
+              height: 1,
+              thickness: 0.6,
+              color: Color(0xFFEDEFF2),
+            ),
+
+            // ============== FOOTER (8%) ==============
+            SizedBox(
+              height: size.height * 0.08,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: 32,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // ───── VIEW MODE → EDIT BUTTON ─────
+                    if (!_editing)
+                      InkWell(
+                        onTap: () async {
+                          if (_selectedPatientId == null) return;
+
+                          final updated = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PatientEditWidget(
+                                patientId: _selectedPatientId!,
+                              ),
+                            ),
+                          );
+
+                          // 🔄 reload details if updated
+                          if (updated == true && _selectedPatientId != null) {
+                            await _loadPatientDetails(_selectedPatientId!);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(999),
+                        splashColor: Colors.black12,
+                        highlightColor: Colors.transparent,
+                        child: Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 26),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111827),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Edit',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // ───── EDIT MODE → UPDATE + CANCEL ─────
+                    if (_editing) ...[
+                      InkWell(
+                        onTap: _saving ? null : _onUpdate,
+                        borderRadius: BorderRadius.circular(999),
+                        splashColor: Colors.black12,
+                        highlightColor: Colors.transparent,
+                        child: Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 26),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111827),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Update',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      InkWell(
+                        onTap: _saving ? null : _cancelEdit,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 26),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE5E7EB),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Color(0xFF111827),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -408,28 +542,39 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Patient Details", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-        const SizedBox(height: 24),
         const Padding(
           padding: EdgeInsets.only(bottom: 8),
-          child: Text("Patient Search", style: TextStyle(color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w600)),
+          child: Text("Patient Search",
+              style: TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600)),
         ),
         if (_loadingPatients)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
+          const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator())
         else
           DropdownButtonFormField2<String>(
             isExpanded: true,
             value: _selectedPatientId,
             decoration: _dec("Select patient"),
-            items: _patientOptions.map((p) => DropdownMenuItem<String>(value: p.id, child: _buildPatientOptionRow(p))).toList(),
+            items: _patientOptions
+                .map((p) => DropdownMenuItem<String>(
+                    value: p.id, child: _buildPatientOptionRow(p)))
+                .toList(),
             onChanged: (v) {
               _onPatientSelected(v);
             },
             dropdownStyleData: DropdownStyleData(
               maxHeight: 280,
-              decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16)),
             ),
-            menuItemStyleData: const MenuItemStyleData(height: 44, padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            menuItemStyleData: const MenuItemStyleData(
+                height: 44,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
             dropdownSearchData: DropdownSearchData(
               searchController: _searchCtrl,
               searchInnerWidgetHeight: 52,
@@ -443,15 +588,20 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
                     prefixIcon: const Icon(Icons.search, size: 18),
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
               searchMatchFn: (item, searchValue) {
                 final value = item.value ?? '';
-                final opt = _patientOptions.firstWhere((p) => p.id == value, orElse: () => _PatientOption(id: value, label: value));
-                return opt.label.toLowerCase().contains(searchValue.toLowerCase());
+                final opt = _patientOptions.firstWhere((p) => p.id == value,
+                    orElse: () => _PatientOption(id: value, label: value));
+                return opt.label
+                    .toLowerCase()
+                    .contains(searchValue.toLowerCase());
               },
             ),
             onMenuStateChange: (isOpen) {
@@ -470,15 +620,26 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Edit Patient", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+          const Text("Edit Patient",
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827))),
           const SizedBox(height: 24),
 
           // Patient ID (read-only)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),
-            child: Text("Patient ID", style: TextStyle(color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w600)),
+            child: Text("Patient ID",
+                style: TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
           ),
-          TextFormField(controller: _patientIdCtrl, readOnly: true, decoration: _dec("Auto-generated")),
+          TextFormField(
+              controller: _patientIdCtrl,
+              readOnly: true,
+              decoration: _dec("Auto-generated")),
           const SizedBox(height: 16),
 
           _label("First Name *"),
@@ -530,11 +691,16 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4)),
                 ],
               ),
             ),
-            menuItemStyleData: const MenuItemStyleData(height: 44, padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            menuItemStyleData: const MenuItemStyleData(
+                height: 44,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
           ),
           const SizedBox(height: 16),
 
@@ -597,11 +763,16 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4)),
                 ],
               ),
             ),
-            menuItemStyleData: const MenuItemStyleData(height: 44, padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            menuItemStyleData: const MenuItemStyleData(
+                height: 44,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
           ),
           const SizedBox(height: 24),
 
@@ -612,19 +783,28 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF97316),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _saving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text("Update", style: TextStyle(fontWeight: FontWeight.w700)),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text("Update",
+                        style: TextStyle(fontWeight: FontWeight.w700)),
               ),
               const SizedBox(width: 12),
               OutlinedButton(
                 onPressed: _saving ? null : _cancelEdit,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text("Cancel"),
               ),
@@ -637,7 +817,11 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
 
   Widget _label(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: const TextStyle(color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w600)),
+        child: Text(text,
+            style: const TextStyle(
+                color: Color(0xFF111827),
+                fontSize: 14,
+                fontWeight: FontWeight.w600)),
       );
 
   Widget _buildPatientOptionRow(_PatientOption p) {
@@ -664,7 +848,8 @@ class _PatientOption {
 /// Shared helpers (copy into same file or keep external)
 class MobileNumberFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
     String digits = newValue.text.replaceAll(' ', '');
     if (digits.length > 10) digits = digits.substring(0, 10);
     String formatted = '';
@@ -672,16 +857,20 @@ class MobileNumberFormatter extends TextInputFormatter {
       formatted += digits[i];
       if (i == 4 && digits.length > 5) formatted += ' ';
     }
-    return TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
+    return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length));
   }
 }
 
 class SingleSpaceNameFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
     String text = newValue.text;
     text = text.replaceAll(RegExp(r'\s+'), ' ');
     if (text.startsWith(' ')) text = text.trimLeft();
-    return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    return TextEditingValue(
+        text: text, selection: TextSelection.collapsed(offset: text.length));
   }
 }
