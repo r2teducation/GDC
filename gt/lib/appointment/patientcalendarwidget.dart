@@ -7,7 +7,12 @@ import 'createappointmentwidget.dart';
 
 class CalendarEvent {
   final bool isFollowUp;
-  CalendarEvent({required this.isFollowUp});
+  final DateTime dateTime; // 👈 appointment date + time
+
+  CalendarEvent({
+    required this.isFollowUp,
+    required this.dateTime,
+  });
 }
 
 class DoctorBusyEntry {
@@ -57,16 +62,17 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
             (d['appointmentType'] ?? '').toString().toUpperCase() == 'F';
         final key = _ymd(ts.toDate());
         map.putIfAbsent(key, () => []).add(
-              CalendarEvent(isFollowUp: isFollowUp),
+              CalendarEvent(
+                isFollowUp: isFollowUp,
+                dateTime: ts.toDate(), // 👈 from appointmentDateTime
+              ),
             );
       }
       setState(() => _eventsMap = map);
     });
 
-    _doctorBusySub = _db
-        .collection('doctor_unavailability')
-        .snapshots()
-        .listen((snap) {
+    _doctorBusySub =
+        _db.collection('doctor_unavailability').snapshots().listen((snap) {
       final map = <String, List<DoctorBusyEntry>>{};
       for (final d in snap.docs) {
         final ts = d['unavailableDateTime'] as Timestamp;
@@ -106,8 +112,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                 icon: const Icon(Icons.chevron_left),
                 onPressed: () {
                   setState(() {
-                    _focusedMonth = DateTime(
-                        _focusedMonth.year, _focusedMonth.month - 1);
+                    _focusedMonth =
+                        DateTime(_focusedMonth.year, _focusedMonth.month - 1);
                   });
                 },
               ),
@@ -124,8 +130,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                 icon: const Icon(Icons.chevron_right),
                 onPressed: () {
                   setState(() {
-                    _focusedMonth = DateTime(
-                        _focusedMonth.year, _focusedMonth.month + 1);
+                    _focusedMonth =
+                        DateTime(_focusedMonth.year, _focusedMonth.month + 1);
                   });
                 },
               ),
@@ -156,20 +162,12 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                   final events = _eventsMap[key] ?? [];
                   final busy = _doctorBusyMap[key] ?? [];
 
-                  final newCount =
-                      events.where((e) => !e.isFollowUp).length;
-                  final followCount =
-                      events.where((e) => e.isFollowUp).length;
+                  final newCount = events.where((e) => !e.isFollowUp).length;
+                  final followCount = events.where((e) => e.isFollowUp).length;
 
                   return GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              CreateAppointmentWidget(date: d),
-                        ),
-                      );
+                      _showDayDetailsDialog(context, d);
                     },
                     child: Container(
                       margin: const EdgeInsets.all(6),
@@ -184,16 +182,15 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
                               _dayFormat.format(d),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ),
                           const Spacer(),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (newCount > 0)
-                                _badge(newCount, Colors.blue),
+                              if (newCount > 0) _badge(newCount, Colors.blue),
                               if (followCount > 0)
                                 _badge(followCount, Colors.orange),
                               if (busy.isNotEmpty)
@@ -232,8 +229,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   Widget _badge(int c, Color color) => Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration:
-            BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+            color: color, borderRadius: BorderRadius.circular(12)),
         child: Text(
           '$c',
           style:
@@ -255,4 +252,225 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
           Text(label, style: const TextStyle(fontSize: 13)),
         ],
       );
+  Future<void> _showDayDetailsDialog(BuildContext ctx, DateTime day) async {
+    final key = _ymd(day);
+    final events = _eventsMap[key] ?? [];
+    final busy = _doctorBusyMap[key] ?? [];
+
+    final maxWidth = MediaQuery.of(ctx).size.width * 0.9;
+    final maxHeight = MediaQuery.of(ctx).size.height * 0.8;
+
+    await showDialog(
+      context: ctx,
+      builder: (dctx) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ================= HEADER (INVERTED) =================
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                      decoration: const BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(14),
+                          topRight: Radius.circular(14),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DateFormat('EEEE, d MMMM yyyy').format(day),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(dctx).pop(),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ================= BODY =================
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // -------- Appointments --------
+                            const Text(
+                              'Appointments',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 10),
+
+                            if (events.isEmpty)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                child: Text(
+                                  'No appointments scheduled.',
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: events.map((ev) {
+                                  final color = ev.isFollowUp
+                                      ? Colors.orange
+                                      : Colors.blue;
+
+                                  final timeLabel =
+                                      DateFormat('h:mm a').format(ev.dateTime);
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 8,
+                                        )
+                                      ],
+                                    ),
+                                    child: ListTile(
+                                      leading: Container(
+                                        width: 6,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        timeLabel,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                      subtitle: Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          ev.isFollowUp
+                                              ? 'Follow-up Appointment'
+                                              : 'New Appointment',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: color,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+
+                            const SizedBox(height: 14),
+                            const Divider(),
+                            const SizedBox(height: 10),
+
+                            // -------- Doctor Busy --------
+                            const Text(
+                              'Doctor busy hours',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 10),
+
+                            if (busy.isEmpty)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                child: Text(
+                                  'No busy hours logged.',
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: busy.map((_) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const ListTile(
+                                      leading:
+                                          Icon(Icons.block, color: Colors.red),
+                                      title: Text(
+                                        'Doctor busy',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ================= FOOTER (ONLY NEW BUTTON) =================
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () async {
+                              Navigator.of(dctx).pop();
+                              await Navigator.push(
+                                ctx,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      CreateAppointmentWidget(date: day),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 26, vertical: 12),
+                            ),
+                            child: const Text('New'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
