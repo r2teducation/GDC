@@ -28,8 +28,6 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
   // referred by (moved from Visits)
   String? _referredBy; // D / P / O / X
 
-  final TextEditingController _searchCtrl =
-      TextEditingController(); // unused but kept if needed
   String? _gender; // M / F / O
 
   bool _loading = false;
@@ -69,17 +67,12 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
     _ageCtrl.dispose();
     _mobileCtrl.dispose();
     _addressCtrl.dispose();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
   // ---------------------------
   // Helpers / Validations
   // ---------------------------
-  String? _req(String? v, {String name = "This field"}) {
-    if (v == null || v.trim().isEmpty) return "$name is required";
-    return null;
-  }
 
   String? _nameVal(String? v, {String name = "This field"}) {
     if ((v ?? '').trim().isEmpty) return "$name is required";
@@ -140,144 +133,6 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
         return 'Other';
       default:
         return 'Other';
-    }
-  }
-
-  // ---------------------------
-  // Firestore helpers
-  // ---------------------------
-  Future<String> _generatePatientId() async {
-    final counterRef = _db.collection('counters').doc('patientCounter');
-
-    return await _db.runTransaction((tx) async {
-      final snap = await tx.get(counterRef);
-      int last = snap.exists ? (snap['lastNumber'] as int) : 0;
-      int newNum = last + 1;
-      tx.update(counterRef, {'lastNumber': newNum});
-      return "P-${newNum.toString().padLeft(5, '0')}";
-    });
-  }
-
-  Future<bool> _checkDuplicateId(String patientId) async {
-    final doc = await _db.collection('patients').doc(patientId).get();
-    return doc.exists;
-  }
-
-  Future<String?> _findDuplicateComposite(
-    String firstName,
-    String lastName,
-    String mobileFormatted,
-  ) async {
-    final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
-    final key =
-        '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
-
-    final snap = await _db
-        .collection('patients')
-        .where('compositeKey', isEqualTo: key)
-        .limit(1)
-        .get();
-
-    if (snap.docs.isEmpty) return null;
-    return snap.docs.first.id;
-  }
-
-  // ---------------------------
-  // Save (create)
-  // ---------------------------
-  Future<void> _onSave() async {
-    FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_gender == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select gender")),
-      );
-      return;
-    }
-    if (_referredBy == null || _referredBy!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select Referred By")),
-      );
-      return;
-    }
-
-    setState(() => _loading = true);
-
-    try {
-      final firstName = _firstNameCtrl.text.trim();
-      final lastName = _lastNameCtrl.text.trim();
-      final mobileFormatted = _mobileCtrl.text;
-      final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
-
-      if (!RegExp(r'^[0-9]{10}$').hasMatch(mobileRaw)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Enter a valid 10-digit number")),
-        );
-        setState(() => _loading = false);
-        return;
-      }
-
-      final compositeKey =
-          '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
-
-      final dupId =
-          await _findDuplicateComposite(firstName, lastName, mobileFormatted);
-
-      if (dupId != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Patient already exists with ID $dupId (same name & mobile)')),
-        );
-        setState(() => _loading = false);
-        return;
-      }
-
-      String patientId = await _generatePatientId();
-      if (await _checkDuplicateId(patientId)) {
-        throw Exception("Duplicate Patient ID generated. Try again.");
-      }
-
-      final fullName = "$firstName $lastName";
-
-      final data = {
-        'patientId': patientId,
-        'firstName': firstName,
-        'lastName': lastName,
-        'fullName': fullName,
-        'gender': _fromCode(_gender!),
-        'age': int.parse(_ageCtrl.text.trim()),
-        'mobile': mobileRaw,
-        'address': _addressCtrl.text.trim(),
-        'referredBy': _referredBy,
-        'compositeKey': compositeKey,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-      };
-
-      await _db
-          .collection('patients')
-          .doc(patientId)
-          .set(data, SetOptions(merge: true));
-
-      // show success and set patient id in the form
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient Created')),
-      );
-
-      setState(() {
-        _patientIdCtrl.text = patientId;
-      });
-
-      // optionally clear form but keep the id visible — here we keep fields
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
