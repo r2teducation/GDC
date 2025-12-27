@@ -16,7 +16,15 @@ class CalendarEvent {
 }
 
 class DoctorBusyEntry {
-  DoctorBusyEntry();
+  final DateTime dateTime;
+  final String notes;
+
+  DoctorBusyEntry({
+    required this.dateTime,
+    required this.notes,
+  });
+
+  TimeOfDay get time => TimeOfDay(hour: dateTime.hour, minute: dateTime.minute);
 }
 
 class PatientCalendarWidget extends StatefulWidget {
@@ -30,6 +38,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   final DateFormat _headerFormatter = DateFormat('MMMM yyyy');
   final DateFormat _dayFormat = DateFormat('d');
+
+  TimeOfDay? _busyTime;
+  final _busyNotesCtrl = TextEditingController();
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -52,6 +63,34 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     super.dispose();
   }
 
+  Future<void> _pickBusyTime(BuildContext ctx) async {
+    final picked = await showTimePicker(
+      context: ctx,
+      initialTime: _busyTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() => _busyTime = picked);
+    }
+  }
+
+  Future<void> _saveDoctorBusy(DateTime day) async {
+    if (_busyTime == null) return;
+
+    final dateTime = DateTime(
+      day.year,
+      day.month,
+      day.day,
+      _busyTime!.hour,
+      _busyTime!.minute,
+    );
+
+    await FirebaseFirestore.instance.collection('doctorbusyhours').add({
+      'date': DateFormat('yyyy-MM-dd').format(day),
+      'time': Timestamp.fromDate(dateTime),
+      'notes': _busyNotesCtrl.text.trim(),
+    });
+  }
+
   void _listenCalendarData() {
     _appointmentsSub =
         _db.collection('appointments').snapshots().listen((snap) {
@@ -72,12 +111,20 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     });
 
     _doctorBusySub =
-        _db.collection('doctor_unavailability').snapshots().listen((snap) {
+        _db.collection('doctorbusyhours').snapshots().listen((snap) {
       final map = <String, List<DoctorBusyEntry>>{};
       for (final d in snap.docs) {
-        final ts = d['unavailableDateTime'] as Timestamp;
-        final key = _ymd(ts.toDate());
-        map.putIfAbsent(key, () => []).add(DoctorBusyEntry());
+        final ts = d['time'] as Timestamp;
+        final notes = (d['notes'] ?? '').toString();
+        final dt = ts.toDate();
+        final key = _ymd(dt);
+
+        map.putIfAbsent(key, () => []).add(
+              DoctorBusyEntry(
+                dateTime: dt,
+                notes: notes,
+              ),
+            );
       }
       setState(() => _doctorBusyMap = map);
     });
@@ -411,21 +458,22 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                               )
                             else
                               Column(
-                                children: busy.map((_) {
+                                children: busy.map((b) {
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 10),
                                     decoration: BoxDecoration(
                                       color: Colors.red.withOpacity(0.12),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const ListTile(
-                                      leading:
-                                          Icon(Icons.block, color: Colors.red),
+                                    child: ListTile(
+                                      leading: const Icon(Icons.block,
+                                          color: Colors.red),
                                       title: Text(
-                                        'Doctor busy',
-                                        style: TextStyle(
+                                        DateFormat('h:mm a').format(b.dateTime),
+                                        style: const TextStyle(
                                             fontWeight: FontWeight.w600),
                                       ),
+                                      subtitle: Text(b.notes),
                                     ),
                                   );
                                 }).toList(),
@@ -435,12 +483,30 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                       ),
                     ),
 
-                    // ================= FOOTER (ONLY NEW BUTTON) =================
+                    // ================= FOOTER =================
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          // 🟥 Doctor Busy button
+                          OutlinedButton(
+                            onPressed: () async {
+                              Navigator.of(dctx).pop();
+                              await _logDoctorBusyHours(ctx, day);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 22, vertical: 12),
+                            ),
+                            child: const Text('Doctor Busy'),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // ⚫ New Appointment
                           ElevatedButton(
                             onPressed: () async {
                               Navigator.of(dctx).pop();
@@ -472,5 +538,267 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         );
       },
     );
+  }
+
+  Future<void> _logDoctorBusyHours(BuildContext ctx, DateTime day) async {
+    final key = _ymd(day);
+    final events = _eventsMap[key] ?? [];
+    final busy = _doctorBusyMap[key] ?? [];
+
+    _busyTime = null;
+    _busyNotesCtrl.clear();
+
+    final maxWidth = MediaQuery.of(ctx).size.width * 0.9;
+    final maxHeight = MediaQuery.of(ctx).size.height * 0.8;
+
+    await showDialog(
+      context: ctx,
+      builder: (dctx) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return Dialog(
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              backgroundColor: Colors.transparent,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= HEADER =================
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Log Doctor Busy Hours',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.of(dctx).pop(),
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ================= BODY =================
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Time',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 6),
+                                OutlinedButton.icon(
+                                  onPressed: () => _showSlotPicker(
+                                    dctx,
+                                    day,
+                                    events,
+                                    busy,
+                                    dialogSetState,
+                                  ),
+                                  icon: const Icon(Icons.access_time),
+                                  label: Text(
+                                    _busyTime == null
+                                        ? 'Select time'
+                                        : _busyTime!.format(dctx),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Notes',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: _busyNotesCtrl,
+                                  maxLines: 3,
+                                  decoration: InputDecoration(
+                                    hintText: 'Optional notes',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ================= FOOTER =================
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: _busyTime == null
+                                    ? null
+                                    : () async {
+                                        final dt = DateTime(
+                                          day.year,
+                                          day.month,
+                                          day.day,
+                                          _busyTime!.hour,
+                                          _busyTime!.minute,
+                                        );
+
+                                        await _db
+                                            .collection('doctorbusyhours')
+                                            .add({
+                                          'date': _ymd(day),
+                                          'time': Timestamp.fromDate(dt),
+                                          'notes': _busyNotesCtrl.text.trim(),
+                                        });
+
+                                        Navigator.of(dctx).pop();
+                                        setState(() {});
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 26, vertical: 12),
+                                ),
+                                child: const Text('Save'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showSlotPicker(
+    BuildContext ctx,
+    DateTime day,
+    List<CalendarEvent> events,
+    List<DoctorBusyEntry> busy,
+    void Function(void Function()) dialogSetState,
+  ) async {
+    final slots = _generateSlots();
+
+    await showDialog(
+      context: ctx,
+      builder: (dctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select time — ${DateFormat('d MMM yyyy').format(day)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: slots.map((slot) {
+                    final blocked = _isSlotBlocked(day, slot, events, busy);
+
+                    final selected = _busyTime != null &&
+                        _busyTime!.hour == slot.hour &&
+                        _busyTime!.minute == slot.minute;
+
+                    return ChoiceChip(
+                      label: Text(slot.format(ctx)),
+                      selected: selected,
+                      onSelected: blocked
+                          ? null
+                          : (_) {
+                              dialogSetState(() => _busyTime = slot);
+                              Navigator.pop(dctx);
+                            },
+                      selectedColor: Colors.black,
+                      disabledColor: Colors.grey.shade300,
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: blocked
+                            ? Colors.grey
+                            : selected
+                                ? Colors.white
+                                : Colors.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isSlotBlocked(
+    DateTime day,
+    TimeOfDay slot,
+    List<CalendarEvent> events,
+    List<DoctorBusyEntry> busy,
+  ) {
+    final booked = events.any((e) =>
+        e.dateTime.hour == slot.hour && e.dateTime.minute == slot.minute);
+
+    final doctorBusy = busy
+        .any((b) => b.time.hour == slot.hour && b.time.minute == slot.minute);
+
+    return booked || doctorBusy;
+  }
+
+  List<TimeOfDay> _generateSlots() {
+    final slots = <TimeOfDay>[];
+    for (int h = 9; h <= 17; h++) {
+      slots.add(TimeOfDay(hour: h, minute: 0));
+      if (!(h == 17)) {
+        slots.add(TimeOfDay(hour: h, minute: 30));
+      }
+    }
+    return slots;
   }
 }

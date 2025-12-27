@@ -303,15 +303,32 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Create Appointment — ${DateFormat('EEEE, d MMM yyyy').format(widget.date)}',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
-                ),
+            // ================= HEADER (INVERTED – SAME AS DAY DIALOG) =================
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+              decoration: const BoxDecoration(
+                color: Colors.black,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Create Appointment — ${DateFormat('EEEE, d MMM yyyy').format(widget.date)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    splashRadius: 20,
+                    tooltip: 'Close',
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -509,13 +526,6 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _pillButton(
-                      label: 'Close',
-                      background: const Color(0xFFE5E7EB),
-                      foreground: const Color(0xFF111827),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 12),
                     _pillButton(
                       label: 'Save',
                       background: const Color(0xFF111827),
