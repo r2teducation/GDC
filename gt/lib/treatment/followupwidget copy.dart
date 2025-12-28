@@ -14,10 +14,6 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
-  static const Color _readOnlyText = Color(0xFF6B7280); // slate-500
-  static const Color _readOnlyHeading = Color(0xFF4B5563); // slate-600
-  static const Color _readOnlyDivider = Color(0xFFE5E7EB); // light grey
-
   // ---------------- Chief Complaint Snapshot ----------------
   List<Map<String, dynamic>> _chiefComplaintSnapshot = [];
   bool _loadingChiefComplaint = false;
@@ -198,58 +194,50 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     }
 
     return SizedBox(
-      width: double.infinity,
-      child: Container(
-        margin: const EdgeInsets.only(top: 8, bottom: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: const BoxDecoration(
-          color: Colors.white, // 📄 paper
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Previous Follow-Ups',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _readOnlyHeading,
+        width: double.infinity,
+        child: Container(
+          margin: const EdgeInsets.only(top: 8, bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Previous Follow-Ups',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Divider(color: _readOnlyDivider, thickness: 0.6),
-            const SizedBox(height: 8),
-            for (final f in _previousFollowUps) ...[
-              Text(
-                DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
-                  (f['treatmentDate'] as Timestamp).toDate(),
+              const SizedBox(height: 12),
+              for (final f in _previousFollowUps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
+                          (f['treatmentDate'] as Timestamp).toDate(),
+                        ),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blueGrey,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        f['doctorNotes'] ?? '--',
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                      const Divider(height: 20),
+                    ],
+                  ),
                 ),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _readOnlyHeading,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                f['doctorNotes'] ?? '--',
-                style: const TextStyle(
-                  color: _readOnlyText,
-                  height: 1.5,
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Divider(
-                  color: _readOnlyDivider,
-                  thickness: 0.6,
-                ),
-              ),
             ],
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 
   Widget _chiefComplaintSnapshotPanel() {
@@ -269,8 +257,10 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
         child: Container(
           margin: const EdgeInsets.only(top: 16, bottom: 16),
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,8 +321,21 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
         ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(apptDate)
         : 'Unknown time';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+    return Container(
+      margin: const EdgeInsets.only(top: 16, bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -340,58 +343,66 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           Text(
             'Patient Health Snapshot at $apptLabel',
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _readOnlyHeading,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          const Divider(color: _readOnlyDivider, thickness: 0.6),
           const SizedBox(height: 12),
 
           /// ===== SCROLLABLE CONTENT =====
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _sectionText('Vitals', [
-                _kv('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
-                _kv('HR', '${vitals['heartRate']}'),
-                _kv('BR', '${vitals['breathingRate']}'),
-                _kv('Ht / Wt', '${vitals['heightCm']} / ${vitals['weightKg']}'),
-                _kv('BMI', '${vitals['bmi']}'),
-                _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
-              ]),
-              _sectionText(
-                'Health Conditions',
-                _trueKeys(health),
-              ),
-              _sectionText('Allergies', [
-                _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
-                _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
-                _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
-                _kv('Notes', allergies['notes'] ?? '--'),
-              ]),
-              _sectionText(
-                'Dental History',
-                [
-                  ..._trueKeys(dental['conditions'] ?? {}),
-                  _kv('Notes', dental['notes'] ?? '--'),
-                ],
-              ),
-              _sectionText(
-                'Consent',
-                [
-                  Text(
-                    consent['given'] == true ? 'Consent Given' : 'Not Given',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color:
-                          consent['given'] == true ? Colors.green : Colors.red,
-                    ),
+          SizedBox(
+            height: 280, // 👈 adjust as needed (250–350 works well)
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionText('Vitals', [
+                    _kv('BP',
+                        '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
+                    _kv('HR', '${vitals['heartRate']}'),
+                    _kv('BR', '${vitals['breathingRate']}'),
+                    _kv('Ht / Wt',
+                        '${vitals['heightCm']} / ${vitals['weightKg']}'),
+                    _kv('BMI', '${vitals['bmi']}'),
+                    _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
+                  ]),
+                  _sectionText(
+                    'Health Conditions',
+                    _trueKeys(health),
+                  ),
+                  _sectionText('Allergies', [
+                    _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
+                    _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
+                    _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
+                    _kv('Notes', allergies['notes'] ?? '--'),
+                  ]),
+                  _sectionText(
+                    'Dental History',
+                    [
+                      ..._trueKeys(dental['conditions'] ?? {}),
+                      _kv('Notes', dental['notes'] ?? '--'),
+                    ],
+                  ),
+                  _sectionText(
+                    'Consent',
+                    [
+                      Text(
+                        consent['given'] == true
+                            ? 'Consent Given'
+                            : 'Not Given',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: consent['given'] == true
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -673,256 +684,150 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     );
   }
 
+  // ======================================================
+  // Build
+  // ======================================================
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Follow Up',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+
+          const SizedBox(height: 16),
+
+          // Patient search + date
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField2<String>(
+                  isExpanded: true,
+                  value: _selectedPatientId,
+                  decoration: _dec("Select patient"),
+                  items: _patientOptions
+                      .map(
+                        (p) => DropdownMenuItem<String>(
+                          value: p.id,
+                          child: _buildPatientOptionRow(p),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _onPatientSelected,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) {
+                      return "Please select a patient";
+                    }
+                    return null;
+                  },
+
+                  // ✅ THIS MAKES THE DROPDOWN LOOK CLEAN & CURVED
+                  dropdownStyleData: DropdownStyleData(
+                    maxHeight: 280,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    scrollbarTheme: ScrollbarThemeData(
+                      radius: const Radius.circular(12),
+                      thickness: MaterialStateProperty.all(4),
+                      thumbVisibility: MaterialStateProperty.all(true),
+                    ),
+                  ),
+
+                  // ✅ COMPACT ROW HEIGHT (VERY IMPORTANT)
+                  menuItemStyleData: const MenuItemStyleData(
+                    height: 44,
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                  ),
+
+                  // ✅ SEARCH BOX INSIDE DROPDOWN
+                  dropdownSearchData: DropdownSearchData(
+                    searchController: _searchCtrl,
+                    searchInnerWidgetHeight: 56,
+                    searchInnerWidget: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Search by ID / Name',
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    searchMatchFn: (item, searchValue) {
+                      final value = item.value ?? '';
+                      final opt = _patientOptions.firstWhere(
+                        (p) => p.id == value,
+                        orElse: () => _PatientOption(id: value, label: value),
+                      );
+                      return opt.label
+                          .toLowerCase()
+                          .contains(searchValue.toLowerCase());
+                    },
+                  ),
+
+                  onMenuStateChange: (isOpen) {
+                    if (!isOpen) _searchCtrl.clear();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: _pickDate,
+                child: Text(_displayDate.format(_selectedDate)),
+              ),
+            ],
+          ),
+
+          // 🔥 PATIENT HEALTH CONDITIONS PANEL
+          _patientHealthPanel(),
+          _chiefComplaintSnapshotPanel(),
+          _previousFollowUpsPanel(),
+          _sectionHeader('Doctor Notes'),
+          TextFormField(
+            controller: _doctorNotesCtrl,
+            maxLines: 5,
+            decoration: _dec('Doctor notes'),
+          ),
+
+          const SizedBox(height: 24),
+
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            OutlinedButton(onPressed: _clearForm, child: const Text('Reset')),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: _saving ? null : _onSave,
+              child: const Text('Save Follow Up'),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
   Widget _sectionHeader(String title) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
       );
-
-  // ------------------------------
-  // Layout constants
-  // ------------------------------
-  static const Color _bgColor = Color(0xFFF6F7F9);
-  static const double _headerFooterRatio = 0.08;
-  static const EdgeInsets _bodyPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
-    return Scaffold(
-      backgroundColor: _bgColor.withOpacity(0.98),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(size),
-            _buildScrollableBody(),
-            _softDivider(),
-            _buildFooter(size),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ======================================================
-  // HEADER
-  // ======================================================
-  Widget _buildHeader(Size size) {
-    return SizedBox(
-      height: size.height * _headerFooterRatio,
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Follow Up',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ======================================================
-  // SCROLLABLE BODY
-  // ======================================================
-  Widget _buildScrollableBody() {
-    return Expanded(
-      child: SingleChildScrollView(
-        padding: _bodyPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔹 Plug form content here in derived widgets
-            // Patient search + date
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField2<String>(
-                    isExpanded: true,
-                    value: _selectedPatientId,
-                    decoration: _dec("Select patient"),
-                    items: _patientOptions
-                        .map(
-                          (p) => DropdownMenuItem<String>(
-                            value: p.id,
-                            child: _buildPatientOptionRow(p),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _onPatientSelected,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return "Please select a patient";
-                      }
-                      return null;
-                    },
-
-                    // ✅ THIS MAKES THE DROPDOWN LOOK CLEAN & CURVED
-                    dropdownStyleData: DropdownStyleData(
-                      maxHeight: 280,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      scrollbarTheme: ScrollbarThemeData(
-                        radius: const Radius.circular(12),
-                        thickness: MaterialStateProperty.all(4),
-                        thumbVisibility: MaterialStateProperty.all(true),
-                      ),
-                    ),
-
-                    // ✅ COMPACT ROW HEIGHT (VERY IMPORTANT)
-                    menuItemStyleData: const MenuItemStyleData(
-                      height: 44,
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                    ),
-
-                    // ✅ SEARCH BOX INSIDE DROPDOWN
-                    dropdownSearchData: DropdownSearchData(
-                      searchController: _searchCtrl,
-                      searchInnerWidgetHeight: 56,
-                      searchInnerWidget: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: 'Search by ID / Name',
-                            prefixIcon: const Icon(Icons.search, size: 18),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 12),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      searchMatchFn: (item, searchValue) {
-                        final value = item.value ?? '';
-                        final opt = _patientOptions.firstWhere(
-                          (p) => p.id == value,
-                          orElse: () => _PatientOption(id: value, label: value),
-                        );
-                        return opt.label
-                            .toLowerCase()
-                            .contains(searchValue.toLowerCase());
-                      },
-                    ),
-
-                    onMenuStateChange: (isOpen) {
-                      if (!isOpen) _searchCtrl.clear();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: _pickDate,
-                  child: Text(_displayDate.format(_selectedDate)),
-                ),
-              ],
-            ),
-
-            // 🔥 PATIENT HEALTH CONDITIONS PANEL
-            _patientHealthPanel(),
-            _chiefComplaintSnapshotPanel(),
-            _previousFollowUpsPanel(),
-            _sectionHeader('Doctor Notes'),
-            TextFormField(
-              controller: _doctorNotesCtrl,
-              maxLines: 5,
-              decoration: _dec('Doctor notes'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ======================================================
-  // FOOTER
-  // ======================================================
-  Widget _buildFooter(Size size) {
-    return SizedBox(
-      height: size.height * _headerFooterRatio,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 24, right: 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            _pillButton(
-              label: 'Close',
-              background: const Color(0xFFE5E7EB),
-              foreground: const Color(0xFF111827),
-              onPressed: () {},
-            ),
-            const SizedBox(width: 12),
-            _pillButton(
-              label: 'Save',
-              background: const Color(0xFF111827),
-              foreground: Colors.white,
-              onPressed: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ======================================================
-  // HELPERS
-  // ======================================================
-  static Divider _softDivider() => const Divider(
-        height: 1,
-        thickness: 0.6,
-        color: Color(0xFFEDEFF2),
-      );
-
-  static Widget _pillButton({
-    required String label,
-    required Color background,
-    required Color foreground,
-    required VoidCallback onPressed,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      splashColor: Colors.black12,
-      highlightColor: Colors.transparent,
-      onTap: onPressed,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 26),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ======================================================

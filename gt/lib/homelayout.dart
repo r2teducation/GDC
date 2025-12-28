@@ -105,8 +105,6 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                   onLogout: () => _logout(context),
                   overlay: _navState,
                 ),
-                const Divider(
-                    height: 1, thickness: 0.6, color: Color(0xFFEDEFF2)),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -274,7 +272,13 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
                         color: _activeTab == i
                             ? Colors.white // ACTIVE = WHITE
                             : const Color(0xFF111827), // DARK INACTIVE
-                        borderRadius: BorderRadius.circular(10),
+                        //borderRadius: BorderRadius.circular(10),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(10),
+                          topRight: Radius.circular(10),
+                          bottomLeft: Radius.zero,
+                          bottomRight: Radius.zero,
+                        ),
                       ),
                       child: Text(
                         _tabs[i].label,
@@ -340,12 +344,15 @@ class _SubTabsPanel extends StatelessWidget {
       color: Colors.transparent,
       child: Container(
         width: width,
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: EdgeInsets.zero,
         decoration: BoxDecoration(
           color: Colors.black,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+          ),
           border: Border.all(
-            color: const Color(0xFF1F2933), // subtle dark border
+            color: const Color(0xFF1F2933),
           ),
         ),
         child: Column(
@@ -358,18 +365,20 @@ class _SubTabsPanel extends StatelessWidget {
               children: [
                 InkWell(
                   onTap: () => onSelect(item.route),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        item.label,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                  borderRadius: BorderRadius.zero,
+                  child: SizedBox(
+                    height: 40, // ✅ MATCH MAIN TAB CELL HEIGHT
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          item.label,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),

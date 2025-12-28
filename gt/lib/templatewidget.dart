@@ -56,7 +56,7 @@ class TemplateWidget extends StatelessWidget {
   // SCROLLABLE BODY
   // ======================================================
   Widget _buildScrollableBody() {
-    return const Expanded(
+    return Expanded(
       child: SingleChildScrollView(
         padding: _bodyPadding,
         child: Column(
