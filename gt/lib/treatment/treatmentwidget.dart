@@ -568,9 +568,10 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   }
 
   // ======================================================
-  // Add Problem Dialog (WORKING VERSION)
-  // ======================================================
+// Add Problem Dialog (MATCHES _showDayDetailsDialog STYLE)
+// ======================================================
   final Map<int, Map<String, TextEditingController>> rctInputs = {};
+
   void _openAddProblemDialog() {
     final Set<int> selectedTeeth = {};
     String? problemType;
@@ -595,190 +596,307 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       return [];
     }
 
+    final maxWidth = MediaQuery.of(context).size.width * 0.9;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
     showDialog(
       context: context,
-      builder: (_) {
-        return StatefulBuilder(builder: (context, setStateDialog) {
-          Widget toothBox(int number) {
-            final selected = selectedTeeth.contains(number);
-            return InkWell(
-              onTap: () {
-                setStateDialog(() {
-                  if (selected) {
-                    selectedTeeth.remove(number);
-                    rctInputs.remove(number);
-                  } else {
-                    selectedTeeth.add(number);
-                    if (problemType == 'Root Canal') {
-                      final canals = _getCanalsForTooth(number);
-                      rctInputs[number] = {
-                        for (final c in canals) c: TextEditingController()
-                      };
-                    }
+      builder: (dctx) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              child: StatefulBuilder(
+                builder: (context, setStateDialog) {
+                  Widget toothBox(int number) {
+                    final selected = selectedTeeth.contains(number);
+                    return InkWell(
+                      onTap: () {
+                        setStateDialog(() {
+                          if (selected) {
+                            selectedTeeth.remove(number);
+                            rctInputs.remove(number);
+                          } else {
+                            selectedTeeth.add(number);
+                            if (problemType == 'Root Canal') {
+                              final canals = _getCanalsForTooth(number);
+                              rctInputs[number] = {
+                                for (final c in canals)
+                                  c: TextEditingController()
+                              };
+                            }
+                          }
+                        });
+                      },
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? const Color(0xFF0EA5A4) : Colors.white,
+                          border: Border.all(color: Colors.grey.shade400),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$number',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    );
                   }
-                });
-              },
-              child: Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? const Color(0xFF0EA5A4) : Colors.white,
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '$number',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : Colors.black,
-                  ),
-                ),
-              ),
-            );
-          }
 
-          Widget quadrant(String title, List<int> teeth) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 6),
-                GridView.count(
-                  shrinkWrap: true,
-                  crossAxisCount: 8,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: teeth.map(toothBox).toList(),
-                ),
-              ],
-            );
-          }
-
-          return AlertDialog(
-            title: const Text('Add Problem'),
-            content: SizedBox(
-              width: 760,
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Row(
+                  Widget quadrant(String title, List<int> teeth) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                            child: quadrant('Upper Left',
-                                [18, 17, 16, 15, 14, 13, 12, 11])),
-                        const SizedBox(width: 16),
-                        Expanded(
-                            child: quadrant('Upper Right',
-                                [21, 22, 23, 24, 25, 26, 27, 28])),
+                        Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        const SizedBox(height: 6),
+                        GridView.count(
+                          shrinkWrap: true,
+                          crossAxisCount: 8,
+                          mainAxisSpacing: 4,
+                          crossAxisSpacing: 4,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: teeth.map(toothBox).toList(),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: quadrant('Lower Left',
-                                [48, 47, 46, 45, 44, 43, 42, 41])),
-                        const SizedBox(width: 16),
-                        Expanded(
-                            child: quadrant('Lower Right',
-                                [31, 32, 33, 34, 35, 36, 37, 38])),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField2<String>(
-                      decoration: _dec('Type of problem'),
-                      items: const [
-                        'Root Canal',
-                        'Implants',
-                        'Crowns/Bridges',
-                        'Braces',
-                        'Dentures'
-                      ]
-                          .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) => problemType = v,
-                    ),
-                    if (problemType == 'Root Canal' && selectedTeeth.isNotEmpty)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: selectedTeeth.map((tooth) {
-                          final canals = rctInputs[tooth]!;
-                          final fields = [
-                            ...canals.entries.map((entry) {
-                              return TextFormField(
-                                controller: entry.value,
-                                decoration: _dec('${entry.key} (mm)'),
-                                keyboardType: TextInputType.number,
-                              );
-                            }),
+                    );
+                  }
 
-                            // 👇 ADD THIS
-                            TextFormField(
-                              decoration: _dec('Others (mm / notes)'),
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= HEADER =================
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
                             ),
-                          ];
-                          if (canals == null) return const SizedBox();
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                          child: Row(
                             children: [
-                              const SizedBox(height: 16),
-                              Text(
-                                'Tooth $tooth – Canal Lengths',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700),
+                              const Expanded(
+                                child: Text(
+                                  'Add Problem',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              GridView.count(
-                                shrinkWrap: true,
-                                crossAxisCount: 3,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                                physics: const NeverScrollableScrollPhysics(),
-                                childAspectRatio: 3.2,
-                                children: fields,
+                              IconButton(
+                                onPressed: () => Navigator.of(dctx).pop(),
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
                               ),
                             ],
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: notesCtrl,
-                      decoration: _dec('Notes'),
-                      maxLines: 3,
+                          ),
+                        ),
+
+                        // ================= BODY =================
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: quadrant('Upper Left',
+                                            [18, 17, 16, 15, 14, 13, 12, 11])),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: quadrant('Upper Right',
+                                            [21, 22, 23, 24, 25, 26, 27, 28])),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: quadrant('Lower Left',
+                                            [48, 47, 46, 45, 44, 43, 42, 41])),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: quadrant('Lower Right',
+                                            [31, 32, 33, 34, 35, 36, 37, 38])),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField2<String>(
+                                  isExpanded: true,
+                                  decoration: _dec('Type of problem'),
+
+                                  items: const [
+                                    'Root Canal',
+                                    'Implants',
+                                    'Crowns/Bridges',
+                                    'Braces',
+                                    'Dentures',
+                                  ]
+                                      .map(
+                                        (e) => DropdownMenuItem<String>(
+                                          value: e,
+                                          child: Text(
+                                            e,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w500),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+
+                                  onChanged: (v) {
+                                    setStateDialog(() {
+                                      problemType = v;
+                                      rctInputs.clear();
+                                    });
+                                  },
+
+                                  // ✅ MATCH PATIENT SEARCH DROPDOWN STYLE
+                                  dropdownStyleData: DropdownStyleData(
+                                    maxHeight: 260,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    scrollbarTheme: ScrollbarThemeData(
+                                      radius: const Radius.circular(12),
+                                      thickness: MaterialStateProperty.all(4),
+                                      thumbVisibility:
+                                          MaterialStateProperty.all(true),
+                                    ),
+                                  ),
+
+                                  // ✅ COMPACT, CLEAN ROW HEIGHT
+                                  menuItemStyleData: const MenuItemStyleData(
+                                    height: 44,
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 16),
+                                  ),
+                                ),
+                                if (problemType == 'Root Canal' &&
+                                    selectedTeeth.isNotEmpty)
+                                  Column(
+                                    children: selectedTeeth.map((tooth) {
+                                      final canals = rctInputs[tooth] ?? {};
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Tooth $tooth – Canal Lengths',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          GridView.count(
+                                            shrinkWrap: true,
+                                            crossAxisCount: 3,
+                                            mainAxisSpacing: 8,
+                                            crossAxisSpacing: 8,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            childAspectRatio: 3.2,
+                                            children: [
+                                              ...canals.entries.map(
+                                                (e) => TextFormField(
+                                                  controller: e.value,
+                                                  decoration:
+                                                      _dec('${e.key} (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              TextFormField(
+                                                decoration:
+                                                    _dec('Others (mm / notes)'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: notesCtrl,
+                                  decoration: _dec('Notes'),
+                                  maxLines: 3,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ================= FOOTER =================
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (selectedTeeth.isEmpty ||
+                                      problemType == null) return;
+                                  setState(() {
+                                    _problems.add(_ProblemRow(
+                                      teeth: selectedTeeth.toList()..sort(),
+                                      type: problemType!,
+                                      notes: notesCtrl.text.trim(),
+                                    ));
+                                  });
+                                  Navigator.of(dctx).pop();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 26, vertical: 12),
+                                ),
+                                child: const Text('Add'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close')),
-              ElevatedButton(
-                onPressed: () {
-                  if (selectedTeeth.isEmpty || problemType == null) return;
-                  setState(() {
-                    _problems.add(_ProblemRow(
-                      teeth: selectedTeeth.toList()..sort(),
-                      type: problemType!,
-                      notes: notesCtrl.text.trim(),
-                    ));
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text('Add'),
-              ),
-            ],
-          );
-        });
+          ),
+        );
       },
     );
   }
