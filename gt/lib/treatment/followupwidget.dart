@@ -197,57 +197,53 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       return const SizedBox.shrink();
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: Container(
-        margin: const EdgeInsets.only(top: 8, bottom: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: const BoxDecoration(
-          color: Colors.white, // 📄 paper
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Previous Follow-Ups',
-              style: TextStyle(
-                fontSize: 16,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ===== HEADER (LIKE PATIENT HEALTH SNAPSHOT) =====
+          const Text(
+            'Previous Follow-Ups',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+          const SizedBox(height: 12),
+
+          /// ===== CONTENT =====
+          for (final f in _previousFollowUps) ...[
+            Text(
+              DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
+                (f['treatmentDate'] as Timestamp).toDate(),
+              ),
+              style: const TextStyle(
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: _readOnlyHeading,
               ),
             ),
-            const SizedBox(height: 6),
-            const Divider(color: _readOnlyDivider, thickness: 0.6),
-            const SizedBox(height: 8),
-            for (final f in _previousFollowUps) ...[
-              Text(
-                DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
-                  (f['treatmentDate'] as Timestamp).toDate(),
-                ),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _readOnlyHeading,
-                ),
+            const SizedBox(height: 4),
+            Text(
+              f['doctorNotes'] ?? '--',
+              style: const TextStyle(
+                color: _readOnlyText,
+                height: 1.5,
               ),
-              const SizedBox(height: 4),
-              Text(
-                f['doctorNotes'] ?? '--',
-                style: const TextStyle(
-                  color: _readOnlyText,
-                  height: 1.5,
-                ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                color: _readOnlyDivider,
+                thickness: 0.6,
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Divider(
-                  color: _readOnlyDivider,
-                  thickness: 0.6,
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

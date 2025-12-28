@@ -57,6 +57,9 @@ class HomeLayoutHome extends StatefulWidget {
 
 class _HomeLayoutHomeState extends State<HomeLayoutHome> {
   final _NavOverlayState _navState = _NavOverlayState();
+  final GlobalKey<_TopStickerNavBarState> _topNavKey =
+      GlobalKey<_TopStickerNavBarState>();
+
   String _route = 'dashboard';
 
   @override
@@ -100,6 +103,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
             Column(
               children: [
                 _TopStickerNavBar(
+                  key: _topNavKey,
                   currentRoute: _route,
                   onNavigate: _navigate,
                   onLogout: () => _logout(context),
@@ -125,6 +129,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                   onSelect: (r) {
                     _navigate(r);
                     _navState.close();
+                    _topNavKey.currentState?.clearActiveTab(); // 🔥 KEY LINE
                   },
                 ),
               ),
@@ -136,7 +141,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 }
 
 /// ---------------------------------------------------------------------------
-/// NAV OVERLAY STATE (WITH REBUILD TRIGGER)
+/// NAV OVERLAY STATE
 /// ---------------------------------------------------------------------------
 
 class _NavOverlayState {
@@ -156,21 +161,17 @@ class _NavOverlayState {
     width = w;
     items = i;
     showSubTabs = true;
-    _notify?.call(); // 🔥 force rebuild
+    _notify?.call();
   }
 
   void close() {
     showSubTabs = false;
-    _notify?.call(); // 🔥 force rebuild
+    _notify?.call();
   }
 }
 
 /// ---------------------------------------------------------------------------
 /// TOP STICKER NAV BAR
-/// ---------------------------------------------------------------------------
-
-/// ---------------------------------------------------------------------------
-/// TOP STICKER NAV BAR (BLACK THEME – INVERTED)
 /// ---------------------------------------------------------------------------
 
 class _TopStickerNavBar extends StatefulWidget {
@@ -180,6 +181,7 @@ class _TopStickerNavBar extends StatefulWidget {
   final _NavOverlayState overlay;
 
   const _TopStickerNavBar({
+    super.key,
     required this.currentRoute,
     required this.onNavigate,
     required this.onLogout,
@@ -217,6 +219,10 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
     ]),
   ];
 
+  void clearActiveTab() {
+    setState(() => _activeTab = -1);
+  }
+
   void _openTab(int index) {
     final box = _tabKeys[index].currentContext!.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset.zero);
@@ -235,11 +241,10 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
   Widget build(BuildContext context) {
     return Container(
       height: 56,
-      color: Colors.black, // 🔥 FULL BLACK STRIP
+      color: Colors.black,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          /// GDC LOGO
           const Text(
             'GDC',
             style: TextStyle(
@@ -250,11 +255,9 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
           ),
           const SizedBox(width: 12),
 
-          /// HOME ICON
           _icon(Icons.home_outlined, _goHome),
           const SizedBox(width: 20),
 
-          /// MAIN TABS
           Expanded(
             child: Row(
               children: List.generate(
@@ -263,28 +266,26 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
                   child: InkWell(
                     key: _tabKeys[i],
                     onTap: () => _openTab(i),
-                    borderRadius: BorderRadius.circular(10),
                     child: Container(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 4, vertical: 8),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: _activeTab == i
-                            ? Colors.white // ACTIVE = WHITE
-                            : const Color(0xFF111827), // DARK INACTIVE
-                        //borderRadius: BorderRadius.circular(10),
+                            ? Colors.white
+                            : const Color(0xFF111827),
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(10),
                           topRight: Radius.circular(10),
-                          bottomLeft: Radius.zero,
-                          bottomRight: Radius.zero,
                         ),
                       ),
                       child: Text(
                         _tabs[i].label,
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: _activeTab == i ? Colors.black : Colors.white,
+                          color: _activeTab == i
+                              ? Colors.black
+                              : Colors.white,
                         ),
                       ),
                     ),
@@ -295,8 +296,6 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
           ),
 
           const SizedBox(width: 20),
-
-          /// LOGOUT ICON
           _icon(Icons.power_settings_new, widget.onLogout),
         ],
       ),
@@ -319,14 +318,6 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
 /// SUB TABS PANEL
 /// ---------------------------------------------------------------------------
 
-/// ---------------------------------------------------------------------------
-/// SUB TABS PANEL (BLACK INVERTED THEME)
-/// ---------------------------------------------------------------------------
-
-/// ---------------------------------------------------------------------------
-/// SUB TABS PANEL (BLACK THEME + GREY SEPARATORS)
-/// ---------------------------------------------------------------------------
-
 class _SubTabsPanel extends StatelessWidget {
   final double width;
   final List<_SubTab> items;
@@ -344,60 +335,37 @@ class _SubTabsPanel extends StatelessWidget {
       color: Colors.transparent,
       child: Container(
         width: width,
-        padding: EdgeInsets.zero,
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(16),
             bottomRight: Radius.circular(16),
           ),
-          border: Border.all(
-            color: const Color(0xFF1F2933),
-          ),
+          border: Border.all(color: const Color(0xFF1F2933)),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final isLast = index == items.length - 1;
-
-            return Column(
-              children: [
-                InkWell(
-                  onTap: () => onSelect(item.route),
-                  borderRadius: BorderRadius.zero,
-                  child: SizedBox(
-                    height: 40, // ✅ MATCH MAIN TAB CELL HEIGHT
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          item.label,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+          children: items.map((item) {
+            return InkWell(
+              onTap: () => onSelect(item.route),
+              child: SizedBox(
+                height: 40,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ),
                   ),
                 ),
-
-                /// 🔹 GREY DIVIDER (except last item)
-                if (!isLast)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Divider(
-                      height: 1,
-                      thickness: 0.7,
-                      color: Color(0x66FFFFFF), // 👈 soft white (40% opacity)
-                    ),
-                  ),
-              ],
+              ),
             );
-          }),
+          }).toList(),
         ),
       ),
     );
