@@ -23,13 +23,13 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
   String _hhmm(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  Future<Set<String>> _loadOccupiedSlots(DateTime date) async {
+  Future<Map<String, String>> _loadOccupiedSlots(DateTime date) async {
     final start = DateTime(date.year, date.month, date.day);
     final end = start.add(const Duration(days: 1));
 
-    final occupied = <String>{};
+    final occupied = <String, String>{};
 
-    // ───── Appointments ─────
+// ───── Appointments ─────
     final apptSnap = await _db
         .collection('appointments')
         .where('appointmentDateTime',
@@ -39,29 +39,32 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
 
     for (final d in apptSnap.docs) {
       final ts = d['appointmentDateTime'];
+      final type = (d['appointmentType'] ?? 'N').toString();
+
       if (ts is Timestamp) {
         final dt = ts.toDate();
-        occupied.add(
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
-        );
+        final key =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+        occupied[key] = type == 'F' ? 'FOLLOW_UP' : 'NEW';
       }
     }
 
     // ───── Doctor Busy ─────
     final busySnap = await _db
-        .collection('doctor_unavailability')
-        .where('unavailableDateTime',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('unavailableDateTime', isLessThan: Timestamp.fromDate(end))
+        .collection('doctorbusyhours')
+        .where('time', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('time', isLessThan: Timestamp.fromDate(end))
         .get();
 
     for (final d in busySnap.docs) {
-      final ts = d['unavailableDateTime'];
+      final ts = d['time'];
       if (ts is Timestamp) {
         final dt = ts.toDate();
-        occupied.add(
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
-        );
+        final key =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+        occupied[key] = 'BUSY';
       }
     }
 
@@ -183,7 +186,7 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
             runSpacing: 8,
             children: slots.map((s) {
               final key = _hhmm(s);
-              final taken = occupied.contains(key);
+              final taken = occupied.containsKey(key);
 
               return SizedBox(
                 width: 110,

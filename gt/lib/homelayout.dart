@@ -9,7 +9,6 @@ import 'package:gt/patient/patientsummarywidget.dart';
 
 // Appointment
 import 'package:gt/appointment/patientcalendarwidget.dart';
-import 'package:gt/appointment/doctorcalendarwidget.dart';
 import 'package:gt/templatewidget.dart';
 
 // Treatment
@@ -73,8 +72,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
     'patient_register': const PatientRegisterWidget(),
     'patient_details': const PatientDetailsWidget(),
     'patient_history': const PatientSummaryWidget(),
-    'appointment_patient': const PatientCalendarWidget(),
-    'appointment_doctor': const DoctorCalendarWidget(),
+    'appointment_calendar': const PatientCalendarWidget(),
     'treatment_main': const TreatmentWidget(),
     'treatment_followup': const FollowUpWidget(),
     'payment_main': const PaymentWidget(),
@@ -205,8 +203,7 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
       _SubTab('History', 'patient_history'),
     ]),
     const _MainTab('Appointment', [
-      _SubTab('Patient Calendar', 'appointment_patient'),
-      _SubTab('Doctor Calendar', 'appointment_doctor'),
+      _SubTab('Calendar', 'appointment_calendar'),
     ]),
     const _MainTab('Treatment', [
       _SubTab('Treatment', 'treatment_main'),
