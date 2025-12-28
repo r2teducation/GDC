@@ -1404,75 +1404,142 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     final TextEditingController dialogSearchCtrl = TextEditingController();
     String dialogSearch = '';
 
+    final maxWidth = MediaQuery.of(context).size.width * 0.9;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Add Medicines'),
-              content: SizedBox(
-                width: 760,
-                height: 520, // 🔥 BOUNDED HEIGHT (prevents overflow)
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// 🔍 SEARCH
-                      TextField(
-                        controller: dialogSearchCtrl,
-                        onChanged: (v) {
-                          setDialogState(() {
-                            dialogSearch = v.trim().toLowerCase();
-                          });
-                        },
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          hintText: 'Search medicine',
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+      builder: (dctx) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              child: StatefulBuilder(
+                builder: (context, setDialogState) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= HEADER =================
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Add Medicines',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  dialogSearchCtrl.dispose();
+                                  Navigator.of(dctx).pop();
+                                },
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
 
-                      const SizedBox(height: 12),
+                        // ================= BODY =================
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                /// 🔍 SEARCH
+                                TextField(
+                                  controller: dialogSearchCtrl,
+                                  onChanged: (v) {
+                                    setDialogState(() {
+                                      dialogSearch = v.trim().toLowerCase();
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    prefixIcon:
+                                        const Icon(Icons.search, size: 18),
+                                    hintText: 'Search medicine',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 12),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
 
-                      /// 📦 STOCK
-                      _buildMedicineStockForDialog(
-                        dialogSearch,
-                        setDialogState, // 🔥 PASS DIALOG STATE
-                      ),
+                                const SizedBox(height: 12),
 
-                      const SizedBox(height: 16),
+                                /// 📦 STOCK
+                                _buildMedicineStockForDialog(
+                                  dialogSearch,
+                                  setDialogState,
+                                ),
 
-                      /// 🛒 CART (NOW INSTANT)
-                      if (_medicineCart.isNotEmpty)
-                        _buildMedicineCart(setDialogState),
-                    ],
-                  ),
-                ),
+                                const SizedBox(height: 16),
+
+                                /// 🛒 CART
+                                if (_medicineCart.isNotEmpty)
+                                  _buildMedicineCart(setDialogState),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ================= FOOTER =================
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  dialogSearchCtrl.dispose();
+                                  setState(() {}); // refresh summary
+                                  Navigator.of(dctx).pop();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 26, vertical: 12),
+                                ),
+                                child: const Text('Done'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    dialogSearchCtrl.dispose();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Close'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    dialogSearchCtrl.dispose();
-                    setState(() {}); // 🔥 refresh summary card
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Done'),
-                ),
-              ],
-            );
-          },
+            ),
+          ),
         );
       },
     );
