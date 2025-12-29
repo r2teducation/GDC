@@ -9,7 +9,6 @@ import 'package:gt/patient/patientsummarywidget.dart';
 
 // Appointment
 import 'package:gt/appointment/patientcalendarwidget.dart';
-import 'package:gt/templatewidget.dart';
 
 // Treatment
 import 'package:gt/treatment/treatmentwidget.dart';
@@ -79,7 +78,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
     'treatment_main': const TreatmentWidget(),
     'treatment_followup': const FollowUpWidget(),
     'payment_main': const PaymentWidget(),
-    'payment_history': const TemplateWidget(),
+    'payment_history': const PaymentHistoryWidget(),
     'pharmacy_main': const PharmacyWidget(),
     'pharmacy_stock': const MedicineStockWidget(),
   };
@@ -254,10 +253,8 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
             ),
           ),
           const SizedBox(width: 12),
-
           _icon(Icons.home_outlined, _goHome),
           const SizedBox(width: 20),
-
           Expanded(
             child: Row(
               children: List.generate(
@@ -266,26 +263,16 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
                   child: InkWell(
                     key: _tabKeys[i],
                     onTap: () => _openTab(i),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 8),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _activeTab == i
-                            ? Colors.white
-                            : const Color(0xFF111827),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          topRight: Radius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        _tabs[i].label,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: _activeTab == i
-                              ? Colors.black
-                              : Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _tabs[i].label,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -294,7 +281,6 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
               ),
             ),
           ),
-
           const SizedBox(width: 20),
           _icon(Icons.power_settings_new, widget.onLogout),
         ],
@@ -350,7 +336,7 @@ class _SubTabsPanel extends StatelessWidget {
               child: SizedBox(
                 height: 40,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.only(left: 12),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(

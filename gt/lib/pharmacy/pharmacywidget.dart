@@ -13,6 +13,14 @@ class PharmacyWidget extends StatefulWidget {
 class _PharmacyWidgetState extends State<PharmacyWidget> {
   final _db = FirebaseFirestore.instance;
 
+  // ------------------------------
+  // Layout constants (STANDARD)
+  // ------------------------------
+  static const Color _bgColor = Color(0xFFF6F7F9);
+  static const double _headerFooterRatio = 0.08;
+  static const EdgeInsets _bodyPadding =
+      EdgeInsets.fromLTRB(24, 24, 24, 32);
+
   // ---------------- Patient dropdown ----------------
   final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingPatients = true;
@@ -73,7 +81,7 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
   }
 
   // ======================================================
-  // Load medicine cart from treatments
+  // Load medicine cart
   // ======================================================
   Future<void> _loadCart(String patientId) async {
     setState(() {
@@ -154,6 +162,8 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
         });
       }
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('✅ Medicines Amount Received Successfully')),
@@ -171,83 +181,43 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
   }
 
   // ======================================================
-  // UI
+  // BUILD
   // ======================================================
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Pharmacy Payment',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 24),
-                _label('Select Patient'),
-                _patientDropdown(),
-                const SizedBox(height: 20),
-                _label('Medicine Cart'),
-                _loadingCart ? const LinearProgressIndicator() : _cartTable(),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: OutlinedButton(
-                    onPressed: _calculateTotal,
-                    child: const Text('Total'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _label('Payment Mode'),
-                Row(
-                  children: ['Cash', 'UPI']
-                      .map((e) => _radio(
-                            group: _paymentMode,
-                            value: e,
-                            onChanged: (v) => setState(() => _paymentMode = v),
-                          ))
-                      .toList(),
-                ),
-                const SizedBox(height: 16),
-                _label('Payment Amount'),
-                TextFormField(
-                  controller: _amountCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                        RegExp(r'^\d+\.?\d{0,2}')),
-                  ],
-                  decoration: _dec('Auto calculated'),
-                ),
-                const SizedBox(height: 16),
-                _label('Payment Details'),
-                TextFormField(
-                  controller: _detailsCtrl,
-                  maxLines: 2,
-                  decoration: _dec('Txn no / notes'),
-                ),
-                const SizedBox(height: 28),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: _canPay ? _onPay : null,
-                    child: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Pay'),
-                  ),
-                ),
-              ],
+    final size = MediaQuery.of(context).size;
+
+    return Scaffold(
+      backgroundColor: _bgColor.withOpacity(0.98),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(size),
+            _buildScrollableBody(),
+            _softDivider(),
+            _buildFooter(size),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // HEADER
+  // ======================================================
+  Widget _buildHeader(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Pharmacy Payment',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
             ),
           ),
         ),
@@ -256,37 +226,181 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
   }
 
   // ======================================================
-  // Widgets
+  // BODY
   // ======================================================
-  Widget _patientDropdown1() {
-    if (_loadingPatients) return const LinearProgressIndicator();
+  Widget _buildScrollableBody() {
+    return Expanded(
+      child: SingleChildScrollView(
+        padding: _bodyPadding,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label('Select Patient'),
+              _patientDropdown(),
+              const SizedBox(height: 20),
 
-    return DropdownButtonFormField2<String>(
-      value: _selectedPatientId,
-      decoration: _dec('Select patient'),
-      items: _patientOptions
-          .map((p) => DropdownMenuItem(value: p.id, child: Text(p.label)))
-          .toList(),
-      onChanged: (v) {
-        setState(() => _selectedPatientId = v);
-        if (v != null) _loadCart(v);
-      },
-      dropdownSearchData: DropdownSearchData(
-        searchController: _searchCtrl,
-        searchInnerWidgetHeight: 52,
-        searchInnerWidget: Padding(
-          padding: const EdgeInsets.all(8),
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: _dec('Search'),
+              _label('Medicine Cart'),
+              _loadingCart
+                  ? const LinearProgressIndicator()
+                  : _cartTable(),
+
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton(
+                  onPressed: _calculateTotal,
+                  child: const Text('Total'),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              _label('Payment Mode'),
+              Row(
+                children: ['Cash', 'UPI']
+                    .map((e) => _radio(
+                          group: _paymentMode,
+                          value: e,
+                          onChanged: (v) =>
+                              setState(() => _paymentMode = v),
+                        ))
+                    .toList(),
+              ),
+
+              const SizedBox(height: 16),
+
+              _label('Payment Amount'),
+              TextFormField(
+                controller: _amountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}')),
+                ],
+                decoration: _dec('Auto calculated'),
+              ),
+
+              const SizedBox(height: 16),
+
+              _label('Payment Details'),
+              TextFormField(
+                controller: _detailsCtrl,
+                maxLines: 2,
+                decoration: _dec('Txn no / notes'),
+              ),
+            ],
           ),
         ),
       ),
-      onMenuStateChange: (open) {
-        if (!open) _searchCtrl.clear();
-      },
     );
   }
+
+  // ======================================================
+  // FOOTER
+  // ======================================================
+  Widget _buildFooter(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24, right: 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _pillButton(
+              label: 'Close',
+              background: const Color(0xFFE5E7EB),
+              foreground: const Color(0xFF111827),
+              onPressed: () => Navigator.pop(context),
+            ),
+            const SizedBox(width: 12),
+            _pillButton(
+              label: 'Pay',
+              background: const Color(0xFF111827),
+              foreground: Colors.white,
+              onPressed: _canPay ? _onPay : () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // HELPERS
+  // ======================================================
+  static Divider _softDivider() => const Divider(
+        height: 1,
+        thickness: 0.6,
+        color: Color(0xFFEDEFF2),
+      );
+
+  static Widget _pillButton({
+    required String label,
+    required Color background,
+    required Color foreground,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      splashColor: Colors.black12,
+      highlightColor: Colors.transparent,
+      onTap: onPressed,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 26),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: foreground,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          t,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      );
+
+  InputDecoration _dec(String h) => InputDecoration(
+        hintText: h,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      );
+
+  Widget _radio({
+    required String group,
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) =>
+      Expanded(
+        child: RadioListTile(
+          value: value,
+          groupValue: group,
+          onChanged: (v) => onChanged(v!),
+          title: Text(value),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      );
 
   Widget _patientDropdown() {
     if (_loadingPatients) return const LinearProgressIndicator();
@@ -319,12 +433,10 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
         setState(() => _selectedPatientId = v);
         if (v != null) _loadCart(v);
       },
-
-      // 🔥 MATCHES PatientDetailsWidget LOOK
       dropdownStyleData: DropdownStyleData(
         maxHeight: 280,
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -334,53 +446,24 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
             ),
           ],
         ),
-        scrollbarTheme: ScrollbarThemeData(
-          radius: const Radius.circular(12),
-          thickness: MaterialStateProperty.all(4),
-          thumbVisibility: MaterialStateProperty.all(true),
-        ),
       ),
-
-      // ✅ COMPACT & CLEAN ROWS
       menuItemStyleData: const MenuItemStyleData(
         height: 44,
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 16),
       ),
-
-      // 🔍 SEARCH (SAME AS REFERENCE)
       dropdownSearchData: DropdownSearchData(
         searchController: _searchCtrl,
         searchInnerWidgetHeight: 52,
         searchInnerWidget: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(8),
           child: TextField(
             controller: _searchCtrl,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Search by ID / Name',
-              prefixIcon: const Icon(Icons.search, size: 18),
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+            decoration: _dec('Search by ID / Name'),
           ),
         ),
-        searchMatchFn: (item, searchValue) {
-          final value = item.value ?? '';
-          final opt = _patientOptions.firstWhere(
-            (p) => p.id == value,
-            orElse: () => _PatientOption(id: value, label: value),
-          );
-          return opt.label.toLowerCase().contains(searchValue.toLowerCase());
-        },
       ),
-
-      onMenuStateChange: (isOpen) {
-        if (!isOpen) _searchCtrl.clear();
+      onMenuStateChange: (open) {
+        if (!open) _searchCtrl.clear();
       },
     );
   }
@@ -408,49 +491,6 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
       ],
     );
   }
-
-  // ======================================================
-  // UI helpers
-  // ======================================================
-  Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(t, style: const TextStyle(fontWeight: FontWeight.w600)),
-      );
-
-  InputDecoration _dec(String h) => InputDecoration(
-        hintText: h,
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      );
-
-  Widget _radio({
-    required String group,
-    required String value,
-    required ValueChanged<String> onChanged,
-  }) =>
-      Expanded(
-        child: RadioListTile(
-          value: value,
-          groupValue: group,
-          onChanged: (v) => onChanged(v!),
-          title: Text(value),
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-        ),
-      );
-
-  Widget _card({required Widget child}) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 16)
-          ],
-        ),
-        child: child,
-      );
 
   Widget _tableHeader() => Container(
         padding: const EdgeInsets.all(12),
@@ -500,7 +540,8 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d+\.?\d{0,2}')),
               ],
               onChanged: onPrice,
               decoration: _dec('₹'),

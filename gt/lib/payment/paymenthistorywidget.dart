@@ -14,6 +14,14 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   final _db = FirebaseFirestore.instance;
   final TextEditingController _searchCtrl = TextEditingController();
 
+  // ------------------------------
+  // STANDARD TEMPLATE CONSTANTS
+  // ------------------------------
+  static const Color _bgColor = Color(0xFFF6F7F9);
+  static const double _headerFooterRatio = 0.08;
+  static const EdgeInsets _bodyPadding =
+      EdgeInsets.fromLTRB(24, 24, 24, 32);
+
   bool _loadingPatients = true;
   bool _loadingPayments = false;
 
@@ -92,163 +100,207 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   // ======================================================
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 920),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 40),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+    final size = MediaQuery.of(context).size;
+
+    return Scaffold(
+      backgroundColor: _bgColor.withOpacity(0.98),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(size),
+            _buildBody(),
+            _softDivider(),
+            _buildFooter(size),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // HEADER
+  // ======================================================
+  Widget _buildHeader(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Payment History',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
             ),
-            child: _buildContent(),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Payment History',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 24),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            'Patient Search',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-        ),
-        if (_loadingPatients)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: LinearProgressIndicator(),
-          )
-        else
-          DropdownButtonFormField2<String>(
-            isExpanded: true,
-            value: _selectedPatientId,
-            decoration: _dec("Select patient"),
-            items: _patientOptions
-                .map(
-                  (p) => DropdownMenuItem<String>(
-                    value: p.id,
-                    child: _patientRow(p),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) {
-              setState(() => _selectedPatientId = v);
-              if (v != null) _loadPayments(v);
-            },
+  // ======================================================
+  // BODY
+  // ======================================================
+  Widget _buildBody() {
+    return Expanded(
+      child: SingleChildScrollView(
+        padding: _bodyPadding,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionLabel('Patient Search'),
 
-            // 🔥 MATCHES PatientDetailsWidget
-            dropdownStyleData: DropdownStyleData(
-              maxHeight: 280,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              scrollbarTheme: ScrollbarThemeData(
-                radius: const Radius.circular(12),
-                thickness: MaterialStateProperty.all(4),
-                thumbVisibility: MaterialStateProperty.all(true),
-              ),
-            ),
-            menuItemStyleData: const MenuItemStyleData(
-              height: 44,
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            dropdownSearchData: DropdownSearchData(
-              searchController: _searchCtrl,
-              searchInnerWidgetHeight: 52,
-              searchInnerWidget: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Search by ID / Name',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                _loadingPatients
+                    ? const LinearProgressIndicator()
+                    : DropdownButtonFormField2<String>(
+                        isExpanded: true,
+                        value: _selectedPatientId,
+                        decoration: _dec("Select patient"),
+                        items: _patientOptions
+                            .map(
+                              (p) => DropdownMenuItem<String>(
+                                value: p.id,
+                                child: _patientRow(p),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() => _selectedPatientId = v);
+                          if (v != null) _loadPayments(v);
+                        },
+
+                        dropdownStyleData: DropdownStyleData(
+                          maxHeight: 280,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          scrollbarTheme: ScrollbarThemeData(
+                            radius: const Radius.circular(12),
+                            thickness: MaterialStateProperty.all(4),
+                            thumbVisibility:
+                                MaterialStateProperty.all(true),
+                          ),
+                        ),
+                        menuItemStyleData: const MenuItemStyleData(
+                          height: 44,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                        dropdownSearchData: DropdownSearchData(
+                          searchController: _searchCtrl,
+                          searchInnerWidgetHeight: 52,
+                          searchInnerWidget: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: _searchCtrl,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: 'Search by ID / Name',
+                                prefixIcon:
+                                    const Icon(Icons.search, size: 18),
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding:
+                                    const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          searchMatchFn: (item, searchValue) {
+                            final value = item.value ?? '';
+                            final opt = _patientOptions.firstWhere(
+                              (p) => p.id == value,
+                              orElse: () => _PatientOption(
+                                  id: value, label: value),
+                            );
+                            return opt.label
+                                .toLowerCase()
+                                .contains(searchValue.toLowerCase());
+                          },
+                        ),
+                        onMenuStateChange: (isOpen) {
+                          if (!isOpen) _searchCtrl.clear();
+                        },
+                      ),
+
+                const SizedBox(height: 24),
+
+                if (_loadingPayments)
+                  const LinearProgressIndicator()
+                else if (_payments.isEmpty)
+                  const Text(
+                    'No payment history found.',
+                    style: TextStyle(color: Colors.grey),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(16),
+                      border:
+                          Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _payments.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (_, i) =>
+                          _paymentTile(_payments[i]),
                     ),
                   ),
-                ),
-              ),
-              searchMatchFn: (item, searchValue) {
-                final value = item.value ?? '';
-                final opt = _patientOptions.firstWhere(
-                  (p) => p.id == value,
-                  orElse: () => _PatientOption(id: value, label: value),
-                );
-                return opt.label
-                    .toLowerCase()
-                    .contains(searchValue.toLowerCase());
-              },
-            ),
-            onMenuStateChange: (isOpen) {
-              if (!isOpen) _searchCtrl.clear();
-            },
-          ),
-        const SizedBox(height: 24),
-        if (_loadingPayments)
-          const LinearProgressIndicator()
-        else if (_payments.isEmpty)
-          const Text(
-            'No payment history found.',
-            style: TextStyle(color: Colors.grey),
-          )
-        else
-          Container(
-            height: 320,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Scrollbar(
-              thumbVisibility: true,
-              radius: const Radius.circular(12),
-              child: ListView.separated(
-                itemCount: _payments.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _paymentTile(_payments[i]),
-              ),
+              ],
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 
   // ======================================================
-  // Payment Tile
+  // FOOTER
+  // ======================================================
+  Widget _buildFooter(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24, right: 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _pillButton(
+              label: 'Close',
+              background: const Color(0xFFE5E7EB),
+              foreground: const Color(0xFF111827),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // PAYMENT TILE
   // ======================================================
   Widget _paymentTile(Map<String, dynamic> p) {
     final ts = p['paidAt'] as Timestamp?;
@@ -284,14 +336,24 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
           children: [
             SizedBox(
               width: 140,
-              child: Text(
-                k,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+              child:
+                  Text(k, style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             const Text(' : '),
             Expanded(child: Text(v)),
           ],
+        ),
+      );
+
+  // ======================================================
+  // HELPERS
+  // ======================================================
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          text,
+          style:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       );
 
@@ -302,9 +364,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         fillColor: const Color(0xFFF8FAFC),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        border:
+            OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       );
 
   Widget _patientRow(_PatientOption p) {
@@ -320,6 +381,41 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
           ),
         ),
       ],
+    );
+  }
+
+  static Divider _softDivider() => const Divider(
+        height: 1,
+        thickness: 0.6,
+        color: Color(0xFFEDEFF2),
+      );
+
+  static Widget _pillButton({
+    required String label,
+    required Color background,
+    required Color foreground,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onPressed,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 26),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: foreground,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }
