@@ -210,11 +210,11 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
     ]),
     const _MainTab('Payment', [
       _SubTab('Payment', 'payment_main'),
-      _SubTab('Payment History', 'payment_history'),
+      _SubTab('History', 'payment_history'),
     ]),
     const _MainTab('Pharmacy', [
       _SubTab('Pharmacy', 'pharmacy_main'),
-      _SubTab('Medicine Stock', 'pharmacy_stock'),
+      _SubTab('Stock', 'pharmacy_stock'),
     ]),
   ];
 
