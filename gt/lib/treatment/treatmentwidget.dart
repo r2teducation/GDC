@@ -395,17 +395,41 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     }
   }
 
-  // ======================================================
-  // Date picker
-  // ======================================================
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+
+      // 👇 THIS IS THE KEY
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF111827), // selected day & header highlight
+              onPrimary: Colors.white, // selected day text
+              surface: Colors.white, // calendar background
+              onSurface: Color(0xFF111827), // default text
+            ),
+            dialogBackgroundColor: Colors.white,
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF111827), // OK / Cancel
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
   }
 
   Widget _patientHealthPanel() {
@@ -569,8 +593,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   }
 
   // ======================================================
-// Add Problem Dialog (MATCHES _showDayDetailsDialog STYLE)
-// ======================================================
+  // Add Problem Dialog (MATCHES _showDayDetailsDialog STYLE)
+  // ======================================================
   final Map<int, Map<String, TextEditingController>> rctInputs = {};
 
   void _openAddProblemDialog() {
@@ -1181,7 +1205,29 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                   const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: _pickDate,
-                    child: Text(_displayDate.format(_selectedDate)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      side:
+                          const BorderSide(color: Color(0xFFE5E7EB), width: 1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      foregroundColor: const Color(0xFF111827),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_today, size: 16),
+                        const SizedBox(width: 8),
+                        Text(_displayDate.format(_selectedDate)),
+                      ],
+                    ),
                   ),
                 ],
               ),

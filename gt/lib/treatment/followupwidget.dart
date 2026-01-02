@@ -12,6 +12,7 @@ class FollowUpWidget extends StatefulWidget {
 }
 
 class _FollowUpWidgetState extends State<FollowUpWidget> {
+  String? _chiefComplaintDoctorNotes;
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
@@ -97,6 +98,9 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     setState(() {
       _selectedPatientId = v;
       _patientHealthSnapshot = null;
+      _chiefComplaintSnapshot = [];
+      _chiefComplaintDoctorNotes = null;
+      _chiefComplaintApptLabel = null;
     });
 
     if (v == null) return;
@@ -114,6 +118,8 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       if (snap.docs.isNotEmpty) {
         setState(() {
           _patientHealthSnapshot = snap.docs.first.data();
+          _chiefComplaintSnapshot = [];
+          _chiefComplaintApptLabel = null;
         });
       }
     } catch (_) {
@@ -128,8 +134,14 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       final treatSnap = await _db
           .collection('treatments')
           .where('patientId', isEqualTo: v)
-          .limit(1)
           .get();
+
+      treatSnap.docs.sort((a, b) {
+        final ta = a['treatmentDate'] as Timestamp?;
+        final tb = b['treatmentDate'] as Timestamp?;
+        return (ta?.millisecondsSinceEpoch ?? 0)
+            .compareTo(tb?.millisecondsSinceEpoch ?? 0);
+      });
 
       if (treatSnap.docs.isNotEmpty) {
         final data = treatSnap.docs.first.data();
@@ -138,8 +150,14 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
         final DateTime? dt = ts?.toDate();
 
         setState(() {
-          _chiefComplaintSnapshot =
-              List<Map<String, dynamic>>.from(data['problems'] ?? []);
+          final rawProblems = data['problems'];
+
+          _chiefComplaintSnapshot = rawProblems is List
+              ? List<Map<String, dynamic>>.from(rawProblems)
+              : [];
+
+          _chiefComplaintDoctorNotes =
+              (data['doctorNotes'] ?? '').toString().trim();
 
           _chiefComplaintApptLabel = dt != null
               ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(dt)
@@ -257,31 +275,60 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       );
     }
 
-    if (_chiefComplaintSnapshot.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    // Do not render anything if no patient is selected
+    if (_selectedPatientId == null) return const SizedBox.shrink();
 
-    return SizedBox(
-        width: double.infinity,
-        child: Container(
-          margin: const EdgeInsets.only(top: 16, bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ===== HEADER =====
+          const Text(
+            'Chief Complaint (Initial Visit)',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Chief Complaint Snapshot at ${_chiefComplaintApptLabel ?? 'Last Treatment'}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+
+          if (_chiefComplaintApptLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              _chiefComplaintApptLabel!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _readOnlyText,
               ),
-              const SizedBox(height: 12),
-              for (final p in _chiefComplaintSnapshot)
-                Padding(
+            ),
+          ],
+
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+
+          // ===== PROBLEMS SECTION =====
+          const SizedBox(height: 12),
+          const Text(
+            'Problems',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          if (_chiefComplaintSnapshot.isEmpty)
+            const Text(
+              'No problems found',
+              style: TextStyle(color: _readOnlyText),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _chiefComplaintSnapshot.map((p) {
+                return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,18 +337,49 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                         'Teeth: ${(p['teeth'] as List).join(', ')}',
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      Text('${p['type']}'),
+                      Text(
+                        p['type'] ?? '--',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
                       if ((p['notes'] ?? '').toString().isNotEmpty)
                         Text(
                           p['notes'],
-                          style: const TextStyle(color: Colors.grey),
+                          style: const TextStyle(color: _readOnlyText),
                         ),
                     ],
                   ),
-                ),
-            ],
+                );
+              }).toList(),
+            ),
+
+          // ===== DOCTOR NOTES SECTION =====
+          const SizedBox(height: 8),
+          const Text(
+            'Doctor Notes',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
           ),
-        ));
+          const SizedBox(height: 8),
+
+          Text(
+            (_chiefComplaintDoctorNotes == null ||
+                    _chiefComplaintDoctorNotes!.isEmpty)
+                ? 'No notes found'
+                : _chiefComplaintDoctorNotes!,
+            style: const TextStyle(
+              color: _readOnlyText,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _patientHealthPanel() {
@@ -829,7 +907,28 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                 const SizedBox(width: 12),
                 OutlinedButton(
                   onPressed: _pickDate,
-                  child: Text(_displayDate.format(_selectedDate)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    side: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    foregroundColor: const Color(0xFF111827),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today, size: 16),
+                      const SizedBox(width: 8),
+                      Text(_displayDate.format(_selectedDate)),
+                    ],
+                  ),
                 ),
               ],
             ),
