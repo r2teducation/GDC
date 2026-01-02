@@ -596,6 +596,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   // Add Problem Dialog (MATCHES _showDayDetailsDialog STYLE)
   // ======================================================
   final Map<int, Map<String, TextEditingController>> rctInputs = {};
+  final Map<int, TextEditingController> rctOtherInputs = {};
 
   void _openAddProblemDialog() {
     final Set<int> selectedTeeth = {};
@@ -624,6 +625,41 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     final maxWidth = MediaQuery.of(context).size.width * 0.9;
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
+    String _buildRootCanalPrefix() {
+      final buffer = StringBuffer();
+
+      for (final tooth in selectedTeeth.toList()..sort()) {
+        final canalMap = rctInputs[tooth];
+        final othersCtrl = rctOtherInputs[tooth];
+
+        final parts = <String>[];
+
+        // Buccal / Lingual / Palatal / etc.
+        if (canalMap != null) {
+          for (final entry in canalMap.entries) {
+            final val = entry.value.text.trim();
+            if (val.isNotEmpty) {
+              parts.add('${entry.key}: ${val}mm');
+            }
+          }
+        }
+
+        // ✅ FIX: append `mm` for Others as well
+        if (othersCtrl != null) {
+          final otherVal = othersCtrl.text.trim();
+          if (otherVal.isNotEmpty) {
+            parts.add('Others: ${otherVal}mm');
+          }
+        }
+
+        if (parts.isNotEmpty) {
+          buffer.write('[ Tooth $tooth – ${parts.join(', ')} ] ');
+        }
+      }
+
+      return buffer.toString();
+    }
+
     showDialog(
       context: context,
       builder: (dctx) {
@@ -649,10 +685,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                             selectedTeeth.add(number);
                             if (problemType == 'Root Canal') {
                               final canals = _getCanalsForTooth(number);
+
                               rctInputs[number] = {
                                 for (final c in canals)
                                   c: TextEditingController()
                               };
+
+                              rctOtherInputs[number] = TextEditingController();
                             }
                           }
                         });
@@ -796,6 +835,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                     setStateDialog(() {
                                       problemType = v;
                                       rctInputs.clear();
+                                      rctOtherInputs.clear();
                                     });
                                   },
 
@@ -863,6 +903,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                                 ),
                                               ),
                                               TextFormField(
+                                                controller:
+                                                    rctOtherInputs[tooth],
                                                 decoration:
                                                     _dec('Others (mm / notes)'),
                                               ),
@@ -894,10 +936,17 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                   if (selectedTeeth.isEmpty ||
                                       problemType == null) return;
                                   setState(() {
+                                    String finalNotes = notesCtrl.text.trim();
+
+                                    if (problemType == 'Root Canal') {
+                                      final prefix = _buildRootCanalPrefix();
+                                      finalNotes = '$prefix$finalNotes'.trim();
+                                    }
+
                                     _problems.add(_ProblemRow(
                                       teeth: selectedTeeth.toList()..sort(),
                                       type: problemType!,
-                                      notes: notesCtrl.text.trim(),
+                                      notes: finalNotes,
                                     ));
                                   });
                                   Navigator.of(dctx).pop();
@@ -1238,13 +1287,67 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
               _sectionHeader('Chief Complaint'),
               for (int i = 0; i < _problems.length; i++)
                 Card(
-                  child: ListTile(
-                    title: Text('Teeth: ${_problems[i].teeth.join(', ')}'),
-                    subtitle:
-                        Text('${_problems[i].type}\n${_problems[i].notes}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => setState(() => _problems.removeAt(i)),
+                  color: Colors.white, // ✅ white background
+                  elevation: 6, // ✅ stronger 3D effect
+                  shadowColor: Colors.black.withOpacity(0.15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        /// ===== CONTENT =====
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 🔹 Row 1: Teeth (BOLD)
+                              Text(
+                                'Teeth: ${_problems[i].teeth.join(', ')}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700, // ✅ bold
+                                  color: Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+
+                              // 🔹 Row 2: Problem type
+                              Text(
+                                _problems[i].type,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF374151),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+
+                              // 🔹 Row 3: Notes (can be multiline)
+                              Text(
+                                _problems[i].notes,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: Color(0xFF4B5563),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        /// ===== DELETE ICON =====
+                        IconButton(
+                          tooltip: 'Remove problem',
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.redAccent),
+                          onPressed: () =>
+                              setState(() => _problems.removeAt(i)),
+                        ),
+                      ],
                     ),
                   ),
                 ),
