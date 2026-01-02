@@ -16,6 +16,14 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
+  // ---------------- Payment Status ----------------
+  double _totalPaid = 0;
+  double _totalAmount = 0;
+
+  // ---------------- Payments History ----------------
+  List<Map<String, dynamic>> _paymentHistory = [];
+  bool _loadingPayments = false;
+
   static const Color _readOnlyText = Color(0xFF6B7280); // slate-500
   static const Color _readOnlyHeading = Color(0xFF4B5563); // slate-600
   static const Color _readOnlyDivider = Color(0xFFE5E7EB); // light grey
@@ -34,9 +42,6 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
   List<_PatientOption> _patientOptions = [];
   String? _selectedPatientId;
   String? _chiefComplaintApptLabel;
-
-  // ---------------- Problems ----------------
-  final List<_ProblemRow> _problems = [];
 
   // ---------------- Doctor Notes ----------------
   final TextEditingController _doctorNotesCtrl = TextEditingController();
@@ -189,19 +194,314 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     } finally {
       if (mounted) setState(() => _loadingFollowUps = false);
     }
+
+    setState(() => _loadingPayments = true);
+
+    try {
+      final paySnap = await _db
+          .collection('payments')
+          .where('patientId', isEqualTo: v)
+          .get();
+
+      double paid = 0;
+
+      final rows = paySnap.docs.map((d) {
+        final data = d.data();
+        paid += (data['amount'] ?? 0).toDouble();
+        return data;
+      }).toList();
+
+      setState(() {
+        _paymentHistory = rows;
+        _totalPaid = paid;
+        _totalAmount = paid == 0 ? 0 : paid * 2; // TEMP placeholder
+      });
+    } catch (_) {
+      setState(() {
+        _paymentHistory = [];
+        _totalPaid = 0;
+        _totalAmount = 0;
+      });
+    } finally {
+      if (mounted) setState(() => _loadingPayments = false);
+    }
   }
 
-  // ======================================================
-  // Date picker
-  // ======================================================
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+  Widget _paymentStatusBar1() {
+    if (_totalAmount <= 0) return const SizedBox.shrink();
+
+    final double percent = (_totalPaid / _totalAmount).clamp(0, 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // ---- Labels ----
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Paid: ₹${_totalPaid.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4B5563),
+              ),
+            ),
+            Text(
+              'Total: ₹${_totalAmount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4B5563),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // ---- Progress Bar ----
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 18,
+            width: 260,
+            color: const Color(0xFFE5E7EB),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: percent,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFFB91C1C), // red
+                      Color(0xFFF59E0B), // amber
+                      Color(0xFF16A34A), // green
+                    ],
+                  ),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 10),
+                child: Text(
+                  '${(percent * 100).round()}%',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Widget _paymentStatusBar() {
+    if (_totalAmount <= 0) return const SizedBox.shrink();
+
+    final double percent = (_totalPaid / _totalAmount).clamp(0, 1);
+
+    const double barWidth = 260;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ---- Labels (LOCKED TO BAR WIDTH) ----
+        SizedBox(
+          width: barWidth,
+          child: Row(
+            children: [
+              Text(
+                'Paid: ₹${_totalPaid.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Total: ₹${_totalAmount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        // ---- Progress Bar ----
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 18,
+            width: barWidth,
+            color: const Color(0xFFE5E7EB),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: percent,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFFB91C1C),
+                      Color(0xFFF59E0B),
+                      Color(0xFF16A34A),
+                    ],
+                  ),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 10),
+                child: Text(
+                  '${(percent * 100).round()}%',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _paymentsHistoryPanel() {
+    if (_loadingPayments) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_paymentHistory.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ===== HEADER =====
+          const Text(
+            'Payments History',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+          const SizedBox(height: 12),
+
+          // ===== TABLE HEADER =====
+          _paymentsTableHeader(),
+
+          // ===== TABLE ROWS =====
+          ...List.generate(_paymentHistory.length, (i) {
+            final p = _paymentHistory[i];
+            final bool alt = i.isEven;
+
+            return _paymentsTableRow(
+              index: i + 1,
+              data: p,
+              alternate: alt,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentsTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F3F5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _readOnlyDivider),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 40, child: Text('No')),
+          Expanded(child: Text('Details')),
+          SizedBox(width: 100, child: Text('Amount')),
+          SizedBox(width: 100, child: Text('Mode')),
+          SizedBox(width: 160, child: Text('Paid At')),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentsTableRow({
+    required int index,
+    required Map<String, dynamic> data,
+    required bool alternate,
+  }) {
+    final Timestamp? ts = data['paidAt'];
+    final String paidAt = ts != null
+        ? DateFormat('dd-MMM-yyyy hh:mm a').format(ts.toDate())
+        : '--';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: alternate ? const Color(0xFFF8FAFC) : Colors.white,
+        border: Border(
+          bottom: BorderSide(color: _readOnlyDivider),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            child: Text(
+              '$index',
+              style: const TextStyle(color: _readOnlyText),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              data['details'] ?? '--',
+              style: const TextStyle(color: _readOnlyText),
+            ),
+          ),
+          SizedBox(
+            width: 100,
+            child: Text(
+              '₹${data['amount'] ?? 0}',
+              style: const TextStyle(
+                color: _readOnlyText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 100,
+            child: Text(
+              data['paymentMode'] ?? '--',
+              style: const TextStyle(color: _readOnlyText),
+            ),
+          ),
+          SizedBox(
+            width: 160,
+            child: Text(
+              paidAt,
+              style: const TextStyle(color: _readOnlyText),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _previousFollowUpsPanel() {
@@ -382,346 +682,6 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     );
   }
 
-  Widget _patientHealthPanel() {
-    if (_loadingHealthSnapshot) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: LinearProgressIndicator(),
-      );
-    }
-
-    if (_patientHealthSnapshot == null) return const SizedBox.shrink();
-
-    final data = _patientHealthSnapshot!;
-    final vitals = Map<String, dynamic>.from(data['vitals'] ?? {});
-    final health = Map<String, dynamic>.from(data['healthConditions'] ?? {});
-    final allergies = Map<String, dynamic>.from(data['allergies'] ?? {});
-    final dental = Map<String, dynamic>.from(data['dentalHistory'] ?? {});
-    final consent = Map<String, dynamic>.from(data['consent'] ?? {});
-
-    final Timestamp? apptTs = data['appointmentDateTime'];
-    final DateTime? apptDate = apptTs != null ? apptTs.toDate() : null;
-
-    final String apptLabel = apptDate != null
-        ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(apptDate)
-        : 'Unknown time';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// ===== HEADER (NON-SCROLLABLE) =====
-          Text(
-            'Patient Health Snapshot at $apptLabel',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _readOnlyHeading,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Divider(color: _readOnlyDivider, thickness: 0.6),
-          const SizedBox(height: 12),
-
-          /// ===== SCROLLABLE CONTENT =====
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _sectionText('Vitals', [
-                _kv('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
-                _kv('HR', '${vitals['heartRate']}'),
-                _kv('BR', '${vitals['breathingRate']}'),
-                _kv('Ht / Wt', '${vitals['heightCm']} / ${vitals['weightKg']}'),
-                _kv('BMI', '${vitals['bmi']}'),
-                _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
-              ]),
-              _sectionText(
-                'Health Conditions',
-                _trueKeys(health),
-              ),
-              _sectionText('Allergies', [
-                _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
-                _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
-                _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
-                _kv('Notes', allergies['notes'] ?? '--'),
-              ]),
-              _sectionText(
-                'Dental History',
-                [
-                  ..._trueKeys(dental['conditions'] ?? {}),
-                  _kv('Notes', dental['notes'] ?? '--'),
-                ],
-              ),
-              _sectionText(
-                'Consent',
-                [
-                  Text(
-                    consent['given'] == true ? 'Consent Given' : 'Not Given',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color:
-                          consent['given'] == true ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionText(String title, List<Widget> children) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 6),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _kv(String key, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              key,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          const Text(' : '),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _trueKeys(Map<dynamic, dynamic> map) {
-    final keys =
-        map.entries.where((e) => e.value == true).map((e) => e.key).toList();
-    if (keys.isEmpty) {
-      return const [
-        Text('None', style: TextStyle(color: Colors.grey)),
-      ];
-    }
-    return keys.map((e) => Text('• $e')).toList();
-  }
-
-  // ======================================================
-  // Add Problem Dialog (WORKING VERSION)
-  // ======================================================
-  void _openAddProblemDialog() {
-    final Set<int> selectedTeeth = {};
-    String? problemType;
-    final TextEditingController notesCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return StatefulBuilder(builder: (context, setStateDialog) {
-          Widget toothBox(int number) {
-            final selected = selectedTeeth.contains(number);
-            return InkWell(
-              onTap: () {
-                setStateDialog(() {
-                  selected
-                      ? selectedTeeth.remove(number)
-                      : selectedTeeth.add(number);
-                });
-              },
-              child: Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? const Color(0xFF0EA5A4) : Colors.white,
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '$number',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : Colors.black,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          Widget quadrant(String title, List<int> teeth) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 6),
-                GridView.count(
-                  shrinkWrap: true,
-                  crossAxisCount: 8,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: teeth.map(toothBox).toList(),
-                ),
-              ],
-            );
-          }
-
-          return AlertDialog(
-            title: const Text('Add Problem'),
-            content: SizedBox(
-              width: 760,
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                            child: quadrant('Upper Left',
-                                [18, 17, 16, 15, 14, 13, 12, 11])),
-                        const SizedBox(width: 16),
-                        Expanded(
-                            child: quadrant('Upper Right',
-                                [21, 22, 23, 24, 25, 26, 27, 28])),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: quadrant('Lower Left',
-                                [48, 47, 46, 45, 44, 43, 42, 41])),
-                        const SizedBox(width: 16),
-                        Expanded(
-                            child: quadrant('Lower Right',
-                                [31, 32, 33, 34, 35, 36, 37, 38])),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField2<String>(
-                      decoration: _dec('Type of problem'),
-                      items: const [
-                        'Root Canal',
-                        'Implants',
-                        'Crowns/Bridges',
-                        'Braces',
-                        'Dentures'
-                      ]
-                          .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) => problemType = v,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: notesCtrl,
-                      decoration: _dec('Notes'),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close')),
-              ElevatedButton(
-                onPressed: () {
-                  if (selectedTeeth.isEmpty || problemType == null) return;
-                  setState(() {
-                    _problems.add(_ProblemRow(
-                      teeth: selectedTeeth.toList()..sort(),
-                      type: problemType!,
-                      notes: notesCtrl.text.trim(),
-                    ));
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text('Add'),
-              ),
-            ],
-          );
-        });
-      },
-    );
-  }
-
-  // ======================================================
-  // Save
-  // ======================================================
-  Future<void> _onSave() async {
-    FocusScope.of(context).unfocus();
-
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_selectedPatientId == null || _selectedPatientId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a patient')),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-
-    try {
-      await _db.collection('followups').add({
-        'patientId': _selectedPatientId,
-        'treatmentDate': Timestamp.fromDate(_selectedDate),
-        'doctorNotes': _doctorNotesCtrl.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Follow Up saved successfully')),
-      );
-
-      _clearForm();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Failed to save: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  void _clearForm() {
-    setState(() {
-      _selectedPatientId = null;
-      _patientHealthSnapshot = null;
-      _selectedDate = DateTime.now();
-      _doctorNotesCtrl.clear();
-      _problems.clear();
-    });
-  }
-
   // ======================================================
   // UI helpers
   // ======================================================
@@ -747,12 +707,6 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       ],
     );
   }
-
-  Widget _sectionHeader(String title) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-      );
 
   // ------------------------------
   // Layout constants
@@ -904,37 +858,17 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: _pickDate,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    side: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    foregroundColor: const Color(0xFF111827),
-                    textStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_today, size: 16),
-                      const SizedBox(width: 8),
-                      Text(_displayDate.format(_selectedDate)),
-                    ],
-                  ),
-                ),
+
+                const SizedBox(width: 16),
+
+                // 💳 Payment Status
+                if (_selectedPatientId != null) _paymentStatusBar(),
               ],
             ),
 
             _chiefComplaintSnapshotPanel(),
             _previousFollowUpsPanel(),
+            _paymentsHistoryPanel(),
           ],
         ),
       ),
@@ -1010,15 +944,6 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       ),
     );
   }
-}
-
-// ======================================================
-class _ProblemRow {
-  final List<int> teeth;
-  final String type;
-  final String notes;
-
-  _ProblemRow({required this.teeth, required this.type, required this.notes});
 }
 
 class _PatientOption {
