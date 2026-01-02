@@ -199,7 +199,7 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
     const _MainTab('Patient', [
       _SubTab('Register', 'patient_register'),
       _SubTab('Details', 'patient_details'),
-      _SubTab('History', 'patient_history'),
+      _SubTab('Summary', 'patient_history'),
     ]),
     const _MainTab('Appointment', [
       _SubTab('Calendar', 'appointment_calendar'),

@@ -1,23 +1,9 @@
-// lib/appointment/patientsummarywidget.dart
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
 
-/// PatientSummaryWidget
-///
-/// Shows an overview of a patient's footprints across the system:
-/// - Previous Visits
-/// - Upcoming Visits
-/// - Treatment Summary
-/// - Follow Up Summary
-/// - Payment Summary
-/// - Medication Summary
-///
-/// NOTE: collection names for treatments/followups/payments/medications are assumed.
-/// If your project uses different names, change the collection strings below.
 class PatientSummaryWidget extends StatefulWidget {
   const PatientSummaryWidget({super.key});
 
@@ -26,35 +12,44 @@ class PatientSummaryWidget extends StatefulWidget {
 }
 
 class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
+  String? _chiefComplaintDoctorNotes;
+  final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
-  // patient search controls
+  static const Color _readOnlyText = Color(0xFF6B7280); // slate-500
+  static const Color _readOnlyHeading = Color(0xFF4B5563); // slate-600
+  static const Color _readOnlyDivider = Color(0xFFE5E7EB); // light grey
+
+  // ---------------- Chief Complaint Snapshot ----------------
+  List<Map<String, dynamic>> _chiefComplaintSnapshot = [];
+  bool _loadingChiefComplaint = false;
+
+  // ---------------- Date ----------------
+  DateTime _selectedDate = DateTime.now();
+  final DateFormat _displayDate = DateFormat('yyyy-MM-dd');
+
+  // ---------------- Patient dropdown ----------------
   final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingPatients = true;
   List<_PatientOption> _patientOptions = [];
   String? _selectedPatientId;
+  String? _chiefComplaintApptLabel;
 
-  // appointment lists
-  bool _loadingAppointments = false;
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _previousVisits = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _upcomingVisits = [];
+  // ---------------- Problems ----------------
+  final List<_ProblemRow> _problems = [];
 
-  // other summaries
-  bool _loadingSummaries = false;
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _treatments = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _followups = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _payments = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _medications = [];
+  // ---------------- Doctor Notes ----------------
+  final TextEditingController _doctorNotesCtrl = TextEditingController();
 
-  // date formatter
-  final DateFormat _displayFormatter = DateFormat('EEEE, d MMMM yyyy  h:mm a');
+  // ---------------- Patient Health Snapshot ----------------
+  Map<String, dynamic>? _patientHealthSnapshot;
+  bool _loadingHealthSnapshot = false;
 
-  // Assumed collection names — change if your DB differs
-  final String _treatmentsCollection = 'treatments';
-  final String _followupsCollection = 'followups';
-  final String _paymentsCollection = 'payments';
-  final String _medicationsCollection = 'medications';
-  final String _appointmentsCollection = 'appointments';
+  // ---------------- Previous Follow Ups ----------------
+  List<Map<String, dynamic>> _previousFollowUps = [];
+  bool _loadingFollowUps = false;
+
+  bool _saving = false;
 
   @override
   void initState() {
@@ -65,9 +60,13 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _doctorNotesCtrl.dispose();
     super.dispose();
   }
 
+  // ======================================================
+  // Load patients
+  // ======================================================
   Future<void> _loadPatientsForDropdown() async {
     setState(() => _loadingPatients = true);
     try {
@@ -75,13 +74,13 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       final List<_PatientOption> opts = [];
       for (final doc in snap.docs) {
         final data = doc.data();
+        if (data['isActive'] == false) continue;
         final id = (data['patientId'] ?? doc.id).toString();
         final fullName = (data['fullName'] ??
                 '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
             .toString()
             .trim();
         final label = fullName.isNotEmpty ? '$id  $fullName' : id;
-        if (data['isActive'] == false) continue;
         opts.add(_PatientOption(id: id, label: label));
       }
       setState(() {
@@ -90,429 +89,786 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       });
     } catch (e) {
       setState(() => _loadingPatients = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load patients: $e')));
     }
+
+    // Load chief complaint snapshot
   }
 
-  void _onPatientSelected(String? val) {
+  Future<void> _onPatientSelected(String? v) async {
     setState(() {
-      _selectedPatientId = val;
-      _previousVisits = [];
-      _upcomingVisits = [];
-      _treatments = [];
-      _followups = [];
-      _payments = [];
-      _medications = [];
+      _selectedPatientId = v;
+      _patientHealthSnapshot = null;
+      _chiefComplaintSnapshot = [];
+      _chiefComplaintDoctorNotes = null;
+      _chiefComplaintApptLabel = null;
     });
 
-    if (val != null && val.isNotEmpty) {
-      _loadAllSummaries(val);
-    }
-  }
+    if (v == null) return;
 
-  Future<void> _loadAllSummaries(String patientId) async {
-    setState(() {
-      _loadingAppointments = true;
-      _loadingSummaries = true;
-    });
-
-    final now = DateTime.now();
+    setState(() => _loadingHealthSnapshot = true);
 
     try {
-      // Appointments (recent 200)
       final snap = await _db
-          .collection(_appointmentsCollection)
-          .where('patientId', isEqualTo: patientId)
+          .collection('appointments')
+          .where('patientId', isEqualTo: v)
           .orderBy('appointmentDateTime', descending: true)
-          .limit(200)
+          .limit(1)
           .get();
 
-      final prev = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-      final upcoming = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final ts = data['appointmentDateTime'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        if (dt == null) {
-          prev.add(doc as QueryDocumentSnapshot<Map<String, dynamic>>);
-        } else if (dt.isBefore(now)) {
-          prev.add(doc as QueryDocumentSnapshot<Map<String, dynamic>>);
-        } else {
-          upcoming.add(doc as QueryDocumentSnapshot<Map<String, dynamic>>);
-        }
+      if (snap.docs.isNotEmpty) {
+        setState(() {
+          _patientHealthSnapshot = snap.docs.first.data();
+          _chiefComplaintSnapshot = [];
+          _chiefComplaintApptLabel = null;
+        });
       }
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _loadingHealthSnapshot = false);
+    }
 
-      // Treatments (most recent 200) — assumed fields: date (Timestamp), summary
-      final treatmentsSnap = await _db
-          .collection(_treatmentsCollection)
-          .where('patientId', isEqualTo: patientId)
-          .orderBy('date', descending: true)
-          .limit(200)
+    setState(() => _loadingChiefComplaint = true);
+
+    try {
+      final treatSnap = await _db
+          .collection('treatments')
+          .where('patientId', isEqualTo: v)
           .get();
 
-      // Followups (most recent 200) — assumed fields: date, note
-      final followupsSnap = await _db
-          .collection(_followupsCollection)
-          .where('patientId', isEqualTo: patientId)
-          .orderBy('date', descending: true)
-          .limit(200)
-          .get();
+      treatSnap.docs.sort((a, b) {
+        final ta = a['treatmentDate'] as Timestamp?;
+        final tb = b['treatmentDate'] as Timestamp?;
+        return (ta?.millisecondsSinceEpoch ?? 0)
+            .compareTo(tb?.millisecondsSinceEpoch ?? 0);
+      });
 
-      // Payments (most recent 200) — assumed fields: paidAt / date, amount, mode
-      final paymentsSnap = await _db
-          .collection(_paymentsCollection)
-          .where('patientId', isEqualTo: patientId)
-          .orderBy('paidAt', descending: true)
-          .limit(200)
-          .get();
+      if (treatSnap.docs.isNotEmpty) {
+        final data = treatSnap.docs.first.data();
 
-      // Medications (most recent 200) — assumed fields: issuedAt / date, meds (string)
-      final medsSnap = await _db
-          .collection(_medicationsCollection)
-          .where('patientId', isEqualTo: patientId)
-          .orderBy('issuedAt', descending: true)
-          .limit(200)
+        final Timestamp? ts = data['treatmentDate'];
+        final DateTime? dt = ts?.toDate();
+
+        setState(() {
+          final rawProblems = data['problems'];
+
+          _chiefComplaintSnapshot = rawProblems is List
+              ? List<Map<String, dynamic>>.from(rawProblems)
+              : [];
+
+          _chiefComplaintDoctorNotes =
+              (data['doctorNotes'] ?? '').toString().trim();
+
+          _chiefComplaintApptLabel = dt != null
+              ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(dt)
+              : 'Unknown time';
+        });
+      } else {
+        _chiefComplaintSnapshot = [];
+      }
+    } catch (_) {
+      _chiefComplaintSnapshot = [];
+    } finally {
+      if (mounted) setState(() => _loadingChiefComplaint = false);
+    }
+
+    setState(() => _loadingFollowUps = true);
+
+    try {
+      final followSnap = await _db
+          .collection('followups')
+          .where('patientId', isEqualTo: v)
+          .orderBy('treatmentDate', descending: true)
           .get();
 
       setState(() {
-        _previousVisits = prev;
-        _upcomingVisits = upcoming;
-        _treatments = treatmentsSnap.docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
-        _followups = followupsSnap.docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
-        _payments = paymentsSnap.docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
-        _medications = medsSnap.docs.cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+        _previousFollowUps = followSnap.docs.map((d) => d.data()).toList();
       });
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to load history: $e')));
+    } catch (_) {
+      setState(() => _previousFollowUps = []);
     } finally {
-      if (mounted) {
-        setState(() {
-          _loadingAppointments = false;
-          _loadingSummaries = false;
-        });
-      }
+      if (mounted) setState(() => _loadingFollowUps = false);
     }
   }
 
-  // UI helpers
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
+  // ======================================================
+  // Date picker
+  // ======================================================
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Widget _previousFollowUpsPanel() {
+    if (_loadingFollowUps) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_previousFollowUps.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ===== HEADER (LIKE PATIENT HEALTH SNAPSHOT) =====
+          const Text(
+            'Follow-Ups',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+          const SizedBox(height: 12),
+
+          /// ===== CONTENT =====
+          for (final f in _previousFollowUps) ...[
+            Text(
+              DateFormat('EEEE dd-MMM-yyyy h:mm a').format(
+                (f['treatmentDate'] as Timestamp).toDate(),
+              ),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _readOnlyHeading,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              f['doctorNotes'] ?? '--',
+              style: const TextStyle(
+                color: _readOnlyText,
+                height: 1.5,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                color: _readOnlyDivider,
+                thickness: 0.6,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chiefComplaintSnapshotPanel() {
+    if (_loadingChiefComplaint) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    // Do not render anything if no patient is selected
+    if (_selectedPatientId == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ===== HEADER =====
+          const Text(
+            'Chief Complaint',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+
+          if (_chiefComplaintApptLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              _chiefComplaintApptLabel!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _readOnlyText,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+
+          // ===== PROBLEMS SECTION =====
+          const SizedBox(height: 12),
+          const Text(
+            'Problems',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          if (_chiefComplaintSnapshot.isEmpty)
+            const Text(
+              'No problems found',
+              style: TextStyle(color: _readOnlyText),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _chiefComplaintSnapshot.map((p) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Teeth: ${(p['teeth'] as List).join(', ')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        p['type'] ?? '--',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      if ((p['notes'] ?? '').toString().isNotEmpty)
+                        Text(
+                          p['notes'],
+                          style: const TextStyle(color: _readOnlyText),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+
+          // ===== DOCTOR NOTES SECTION =====
+          const SizedBox(height: 8),
+          const Text(
+            'Doctor Notes',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Text(
+            (_chiefComplaintDoctorNotes == null ||
+                    _chiefComplaintDoctorNotes!.isEmpty)
+                ? 'No notes found'
+                : _chiefComplaintDoctorNotes!,
             style: const TextStyle(
-                color: Color(0xFF111827), fontSize: 14, fontWeight: FontWeight.w600)),
+              color: _readOnlyText,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _patientHealthPanel() {
+    if (_loadingHealthSnapshot) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_patientHealthSnapshot == null) return const SizedBox.shrink();
+
+    final data = _patientHealthSnapshot!;
+    final vitals = Map<String, dynamic>.from(data['vitals'] ?? {});
+    final health = Map<String, dynamic>.from(data['healthConditions'] ?? {});
+    final allergies = Map<String, dynamic>.from(data['allergies'] ?? {});
+    final dental = Map<String, dynamic>.from(data['dentalHistory'] ?? {});
+    final consent = Map<String, dynamic>.from(data['consent'] ?? {});
+
+    final Timestamp? apptTs = data['appointmentDateTime'];
+    final DateTime? apptDate = apptTs != null ? apptTs.toDate() : null;
+
+    final String apptLabel = apptDate != null
+        ? DateFormat('EEEE dd-MMM-yyyy h:mm a').format(apptDate)
+        : 'Unknown time';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ===== HEADER (NON-SCROLLABLE) =====
+          Text(
+            'Patient Health Snapshot at $apptLabel',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _readOnlyHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
+          const SizedBox(height: 12),
+
+          /// ===== SCROLLABLE CONTENT =====
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionText('Vitals', [
+                _kv('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
+                _kv('HR', '${vitals['heartRate']}'),
+                _kv('BR', '${vitals['breathingRate']}'),
+                _kv('Ht / Wt', '${vitals['heightCm']} / ${vitals['weightKg']}'),
+                _kv('BMI', '${vitals['bmi']}'),
+                _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
+              ]),
+              _sectionText(
+                'Health Conditions',
+                _trueKeys(health),
+              ),
+              _sectionText('Allergies', [
+                _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
+                _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
+                _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
+                _kv('Notes', allergies['notes'] ?? '--'),
+              ]),
+              _sectionText(
+                'Dental History',
+                [
+                  ..._trueKeys(dental['conditions'] ?? {}),
+                  _kv('Notes', dental['notes'] ?? '--'),
+                ],
+              ),
+              _sectionText(
+                'Consent',
+                [
+                  Text(
+                    consent['given'] == true ? 'Consent Given' : 'Not Given',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color:
+                          consent['given'] == true ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionText(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _kv(String key, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              key,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Text(' : '),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _trueKeys(Map<dynamic, dynamic> map) {
+    final keys =
+        map.entries.where((e) => e.value == true).map((e) => e.key).toList();
+    if (keys.isEmpty) {
+      return const [
+        Text('None', style: TextStyle(color: Colors.grey)),
+      ];
+    }
+    return keys.map((e) => Text('• $e')).toList();
+  }
+
+  // ======================================================
+  // Add Problem Dialog (WORKING VERSION)
+  // ======================================================
+  void _openAddProblemDialog() {
+    final Set<int> selectedTeeth = {};
+    String? problemType;
+    final TextEditingController notesCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          Widget toothBox(int number) {
+            final selected = selectedTeeth.contains(number);
+            return InkWell(
+              onTap: () {
+                setStateDialog(() {
+                  selected
+                      ? selectedTeeth.remove(number)
+                      : selectedTeeth.add(number);
+                });
+              },
+              child: Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFF0EA5A4) : Colors.white,
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$number',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : Colors.black,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          Widget quadrant(String title, List<int> teeth) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 6),
+                GridView.count(
+                  shrinkWrap: true,
+                  crossAxisCount: 8,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: teeth.map(toothBox).toList(),
+                ),
+              ],
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Add Problem'),
+            content: SizedBox(
+              width: 760,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                            child: quadrant('Upper Left',
+                                [18, 17, 16, 15, 14, 13, 12, 11])),
+                        const SizedBox(width: 16),
+                        Expanded(
+                            child: quadrant('Upper Right',
+                                [21, 22, 23, 24, 25, 26, 27, 28])),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: quadrant('Lower Left',
+                                [48, 47, 46, 45, 44, 43, 42, 41])),
+                        const SizedBox(width: 16),
+                        Expanded(
+                            child: quadrant('Lower Right',
+                                [31, 32, 33, 34, 35, 36, 37, 38])),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField2<String>(
+                      decoration: _dec('Type of problem'),
+                      items: const [
+                        'Root Canal',
+                        'Implants',
+                        'Crowns/Bridges',
+                        'Braces',
+                        'Dentures'
+                      ]
+                          .map(
+                              (e) => DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                      onChanged: (v) => problemType = v,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesCtrl,
+                      decoration: _dec('Notes'),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close')),
+              ElevatedButton(
+                onPressed: () {
+                  if (selectedTeeth.isEmpty || problemType == null) return;
+                  setState(() {
+                    _problems.add(_ProblemRow(
+                      teeth: selectedTeeth.toList()..sort(),
+                      type: problemType!,
+                      notes: notesCtrl.text.trim(),
+                    ));
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // ======================================================
+  // Save
+  // ======================================================
+  Future<void> _onSave() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedPatientId == null || _selectedPatientId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a patient')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    try {
+      await _db.collection('followups').add({
+        'patientId': _selectedPatientId,
+        'treatmentDate': Timestamp.fromDate(_selectedDate),
+        'doctorNotes': _doctorNotesCtrl.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Follow Up saved successfully')),
+      );
+
+      _clearForm();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Failed to save: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _clearForm() {
+    setState(() {
+      _selectedPatientId = null;
+      _patientHealthSnapshot = null;
+      _selectedDate = DateTime.now();
+      _doctorNotesCtrl.clear();
+      _problems.clear();
+    });
+  }
+
+  // ======================================================
+  // UI helpers
+  // ======================================================
+  InputDecoration _dec(String hint) => InputDecoration(
+        isDense: true,
+        hintText: hint,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       );
 
   Widget _buildPatientOptionRow(_PatientOption p) {
     final parts = p.label.split(RegExp(r'\s{2,}'));
-    final idPart = parts.isNotEmpty ? parts.first : p.id;
-    final namePart = parts.length > 1 ? parts.sublist(1).join('  ') : '';
     return Row(
       children: [
-        Text(idPart, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(parts.first, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(width: 12),
-        Expanded(child: Text(namePart, overflow: TextOverflow.ellipsis)),
+        Expanded(
+            child: Text(parts.length > 1 ? parts.last : '',
+                overflow: TextOverflow.ellipsis)),
       ],
     );
   }
 
-  InputDecoration _dec(String hint) {
-    return InputDecoration(
-      isDense: true,
-      hintText: hint,
-      filled: true,
-      fillColor: const Color(0xFFF8FAFC),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-    );
-  }
-
-  Widget _buildPreviousVisitsSection() {
-    if (_loadingAppointments) {
-      return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator());
-    }
-    if (_previousVisits.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Previous Visits", style: TextStyle(color: Colors.grey)),
+  Widget _sectionHeader(String title) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
       );
-    }
 
-    return _buildSimpleTable(
-      columns: const ['S.No', 'Date & Time', 'Notes'],
-      rows: List.generate(_previousVisits.length, (i) {
-        final doc = _previousVisits[i];
-        final data = doc.data();
-        final ts = data['appointmentDateTime'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? _displayFormatter.format(dt) : '-';
-        final notes = (data['notes'] as String?) ?? '';
-        return [(i + 1).toString(), dateText, notes];
-      }),
-    );
-  }
-
-  Widget _buildUpcomingVisitsSection() {
-    if (_loadingAppointments) {
-      return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator());
-    }
-    if (_upcomingVisits.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Upcoming Visits", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return _buildSimpleTable(
-      columns: const ['S.No', 'Date & Time', 'Notes'],
-      rows: List.generate(_upcomingVisits.length, (i) {
-        final doc = _upcomingVisits[i];
-        final data = doc.data();
-        final ts = data['appointmentDateTime'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? _displayFormatter.format(dt) : '-';
-        final notes = (data['notes'] as String?) ?? '';
-        return [(i + 1).toString(), dateText, notes];
-      }),
-    );
-  }
-
-  Widget _buildTreatmentSummarySection() {
-    if (_loadingSummaries) {
-      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator());
-    }
-    if (_treatments.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Treatment records found", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    // For each treatment doc, attempt to extract date & summary
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _treatments.map((doc) {
-        final data = doc.data();
-        final ts = data['date'] ?? data['treatmentAt'] ?? data['createdAt'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? DateFormat('d MMM yyyy').format(dt) : '-';
-        final summary = (data['summary'] ?? data['notes'] ?? data['details'] ?? '').toString();
-        return Column(
-          children: [
-            ListTile(
-              tileColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              title: Text(summary.isNotEmpty ? summary : 'Treatment record', style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(dateText),
-            ),
-            const SizedBox(height: 8),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildFollowUpSummarySection() {
-    if (_loadingSummaries) {
-      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator());
-    }
-    if (_followups.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Follow Up records found", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _followups.map((doc) {
-        final data = doc.data();
-        final ts = data['date'] ?? data['followUpAt'] ?? data['createdAt'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? DateFormat('d MMM yyyy').format(dt) : '-';
-        final note = (data['note'] ?? data['notes'] ?? '').toString();
-        return Column(
-          children: [
-            ListTile(
-              tileColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              title: Text(note.isNotEmpty ? note : 'Follow up', style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(dateText),
-            ),
-            const SizedBox(height: 8),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildPaymentSummarySection() {
-    if (_loadingSummaries) {
-      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator());
-    }
-    if (_payments.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Payment records found", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _payments.map((doc) {
-        final data = doc.data();
-        final ts = data['paidAt'] ?? data['date'] ?? data['createdAt'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? DateFormat('d MMM yyyy').format(dt) : '-';
-        final amount = (data['amount'] ?? data['paidAmount'] ?? '').toString();
-        final mode = (data['mode'] ?? data['paymentMode'] ?? '').toString();
-        final desc = amount.isNotEmpty ? 'Amount: $amount' + (mode.isNotEmpty ? ' • $mode' : '') : (mode.isNotEmpty ? mode : 'Payment');
-        return Column(
-          children: [
-            ListTile(
-              tileColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              title: Text(desc, style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(dateText),
-            ),
-            const SizedBox(height: 8),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildMedicationSummarySection() {
-    if (_loadingSummaries) {
-      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator());
-    }
-    if (_medications.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text("No Medication records found", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _medications.map((doc) {
-        final data = doc.data();
-        final ts = data['issuedAt'] ?? data['date'] ?? data['createdAt'];
-        DateTime? dt;
-        if (ts is Timestamp) dt = ts.toDate();
-        else if (ts is DateTime) dt = ts;
-        final dateText = dt != null ? DateFormat('d MMM yyyy').format(dt) : '-';
-        final meds = (data['meds'] ?? data['medication'] ?? data['prescription'] ?? '').toString();
-        return Column(
-          children: [
-            ListTile(
-              tileColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              title: Text(meds.isNotEmpty ? meds : 'Medication', style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(dateText),
-            ),
-            const SizedBox(height: 8),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  // generic simple table builder used in visits sections
-  Widget _buildSimpleTable({
-    required List<String> columns,
-    required List<List<String>> rows,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // header
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              SizedBox(width: 60, child: Text(columns[0], style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(columns[1], style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(columns[2], style: const TextStyle(fontWeight: FontWeight.w600))),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        ...rows.map((r) {
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  children: [
-                    SizedBox(width: 60, child: Text(r[0])),
-                    Expanded(child: Text(r[1])),
-                    Expanded(child: Text(r[2], overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-            ],
-          );
-        }).toList(),
-      ],
-    );
-  }
+  // ------------------------------
+  // Layout constants
+  // ------------------------------
+  static const Color _bgColor = Color(0xFFF6F7F9);
+  static const double _headerFooterRatio = 0.08;
+  static const EdgeInsets _bodyPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12)],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Patient Summary", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-                const SizedBox(height: 20),
+    final size = MediaQuery.of(context).size;
 
-                // Patient Search
-                _label("Patient Search"),
-                if (_loadingPatients)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
-                else
-                  DropdownButtonFormField2<String>(
+    return Scaffold(
+      backgroundColor: _bgColor.withOpacity(0.98),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(size),
+            _buildScrollableBody(),
+            _softDivider(),
+            _buildFooter(size),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // HEADER
+  // ======================================================
+  Widget _buildHeader(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Patient Summary',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // SCROLLABLE BODY
+  // ======================================================
+  Widget _buildScrollableBody() {
+    return Expanded(
+      child: SingleChildScrollView(
+        padding: _bodyPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔹 Plug form content here in derived widgets
+            // Patient search + date
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField2<String>(
                     isExpanded: true,
                     value: _selectedPatientId,
                     decoration: _dec("Select patient"),
-                    items: _patientOptions.map((p) => DropdownMenuItem<String>(value: p.id, child: _buildPatientOptionRow(p))).toList(),
-                    onChanged: (v) => _onPatientSelected(v),
-                    dropdownStyleData: DropdownStyleData(maxHeight: 280, decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12))),
-                    menuItemStyleData: const MenuItemStyleData(height: 44),
+                    items: _patientOptions
+                        .map(
+                          (p) => DropdownMenuItem<String>(
+                            value: p.id,
+                            child: _buildPatientOptionRow(p),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _onPatientSelected,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return "Please select a patient";
+                      }
+                      return null;
+                    },
+
+                    // ✅ THIS MAKES THE DROPDOWN LOOK CLEAN & CURVED
+                    dropdownStyleData: DropdownStyleData(
+                      maxHeight: 280,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      scrollbarTheme: ScrollbarThemeData(
+                        radius: const Radius.circular(12),
+                        thickness: MaterialStateProperty.all(4),
+                        thumbVisibility: MaterialStateProperty.all(true),
+                      ),
+                    ),
+
+                    // ✅ COMPACT ROW HEIGHT (VERY IMPORTANT)
+                    menuItemStyleData: const MenuItemStyleData(
+                      height: 44,
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                    ),
+
+                    // ✅ SEARCH BOX INSIDE DROPDOWN
                     dropdownSearchData: DropdownSearchData(
                       searchController: _searchCtrl,
-                      searchInnerWidgetHeight: 52,
+                      searchInnerWidgetHeight: 56,
                       searchInnerWidget: Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: TextField(
@@ -523,82 +879,146 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                             prefixIcon: const Icon(Icons.search, size: 18),
                             filled: true,
                             fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
                       searchMatchFn: (item, searchValue) {
                         final value = item.value ?? '';
-                        final opt = _patientOptions.firstWhere((p) => p.id == value, orElse: () => _PatientOption(id: value, label: value));
-                        return opt.label.toLowerCase().contains(searchValue.toLowerCase());
+                        final opt = _patientOptions.firstWhere(
+                          (p) => p.id == value,
+                          orElse: () => _PatientOption(id: value, label: value),
+                        );
+                        return opt.label
+                            .toLowerCase()
+                            .contains(searchValue.toLowerCase());
                       },
                     ),
-                    onMenuStateChange: (isOpen) { if (!isOpen) _searchCtrl.clear(); },
+
+                    onMenuStateChange: (isOpen) {
+                      if (!isOpen) _searchCtrl.clear();
+                    },
                   ),
-
-                const SizedBox(height: 28),
-
-                // Two-column glance: Previous + Upcoming
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left: Previous Visits
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Previous Visits", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 12),
-                          _buildPreviousVisitsSection(),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    // Right: Upcoming Visits
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Upcoming Visits", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 12),
-                          _buildUpcomingVisitsSection(),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
-
-                const SizedBox(height: 28),
-
-                // Summaries stacked vertically
-                const Text("Treatment Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                _buildTreatmentSummarySection(),
-
-                const SizedBox(height: 20),
-                const Text("Follow Up Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                _buildFollowUpSummarySection(),
-
-                const SizedBox(height: 20),
-                const Text("Payment Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                _buildPaymentSummarySection(),
-
-                const SizedBox(height: 20),
-                const Text("Medication Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                _buildMedicationSummarySection(),
-
-                const SizedBox(height: 12),
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  onPressed: _pickDate,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    side: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    foregroundColor: const Color(0xFF111827),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today, size: 16),
+                      const SizedBox(width: 8),
+                      Text(_displayDate.format(_selectedDate)),
+                    ],
+                  ),
+                ),
               ],
             ),
+
+            _chiefComplaintSnapshotPanel(),
+            _previousFollowUpsPanel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // FOOTER
+  // ======================================================
+  Widget _buildFooter(Size size) {
+    return SizedBox(
+      height: size.height * _headerFooterRatio,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24, right: 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _pillButton(
+              label: 'Close',
+              background: const Color(0xFFE5E7EB),
+              foreground: const Color(0xFF111827),
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
+                  (route) => false, // 🔥 clears back stack
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================================================
+  // HELPERS
+  // ======================================================
+  static Divider _softDivider() => const Divider(
+        height: 1,
+        thickness: 0.6,
+        color: Color(0xFFEDEFF2),
+      );
+
+  static Widget _pillButton({
+    required String label,
+    required Color background,
+    required Color foreground,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      splashColor: Colors.black12,
+      highlightColor: Colors.transparent,
+      onTap: onPressed,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 26),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: foreground,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),
     );
   }
+}
+
+// ======================================================
+class _ProblemRow {
+  final List<int> teeth;
+  final String type;
+  final String notes;
+
+  _ProblemRow({required this.teeth, required this.type, required this.notes});
 }
 
 class _PatientOption {
