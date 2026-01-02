@@ -39,6 +39,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
   final DateFormat _headerFormatter = DateFormat('MMMM yyyy');
   final DateFormat _dayFormat = DateFormat('d');
 
+  // ───────── TIME SLOT CONFIG ─────────
+  final int _slotStartHour = 9;
+  final int _slotEndHour = 21; // 9:30 PM included
+  final int _slotMinutesStep = 30;
+
   TimeOfDay? _busyTime;
   final _busyNotesCtrl = TextEditingController();
 
@@ -61,34 +66,6 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     _appointmentsSub?.cancel();
     _doctorBusySub?.cancel();
     super.dispose();
-  }
-
-  Future<void> _pickBusyTime(BuildContext ctx) async {
-    final picked = await showTimePicker(
-      context: ctx,
-      initialTime: _busyTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() => _busyTime = picked);
-    }
-  }
-
-  Future<void> _saveDoctorBusy(DateTime day) async {
-    if (_busyTime == null) return;
-
-    final dateTime = DateTime(
-      day.year,
-      day.month,
-      day.day,
-      _busyTime!.hour,
-      _busyTime!.minute,
-    );
-
-    await FirebaseFirestore.instance.collection('doctorbusyhours').add({
-      'date': DateFormat('yyyy-MM-dd').format(day),
-      'time': Timestamp.fromDate(dateTime),
-      'notes': _busyNotesCtrl.text.trim(),
-    });
   }
 
   void _listenCalendarData() {
@@ -462,18 +439,45 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 10),
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.12),
+                                      color: Colors.white,
                                       borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
                                     ),
                                     child: ListTile(
-                                      leading: const Icon(Icons.block,
-                                          color: Colors.red),
+                                      leading: Container(
+                                        width: 6,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                      ),
                                       title: Text(
                                         DateFormat('h:mm a').format(b.dateTime),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade700,
+                                        ),
                                       ),
-                                      subtitle: Text(b.notes),
+                                      subtitle: Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          b.notes.isEmpty
+                                              ? 'Doctor Busy'
+                                              : b.notes,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   );
                                 }).toList(),
@@ -616,7 +620,7 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                 ),
                                 const SizedBox(height: 6),
                                 OutlinedButton.icon(
-                                  onPressed: () => _showSlotPicker(
+                                  onPressed: () => _pickBusySlotDialog(
                                     dctx,
                                     day,
                                     events,
@@ -704,71 +708,106 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
-  Future<void> _showSlotPicker(
+  Future<void> _pickBusySlotDialog(
     BuildContext ctx,
     DateTime day,
     List<CalendarEvent> events,
     List<DoctorBusyEntry> busy,
     void Function(void Function()) dialogSetState,
   ) async {
-    final slots = _generateSlots();
+    final slots = _generateBusySlots();
 
     await showDialog(
       context: ctx,
+      barrierDismissible: false,
       builder: (dctx) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select time — ${DateFormat('d MMM yyyy').format(day)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 15),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: slots.map((slot) {
-                    final blocked = _isSlotBlocked(day, slot, events, busy);
-
-                    final selected = _busyTime != null &&
-                        _busyTime!.hour == slot.hour &&
-                        _busyTime!.minute == slot.minute;
-
-                    return ChoiceChip(
-                      label: Text(slot.format(ctx)),
-                      selected: selected,
-                      onSelected: blocked
-                          ? null
-                          : (_) {
-                              dialogSetState(() => _busyTime = slot);
-                              Navigator.pop(dctx);
-                            },
-                      selectedColor: Colors.black,
-                      disabledColor: Colors.grey.shade300,
-                      backgroundColor: Colors.white,
-                      labelStyle: TextStyle(
-                        color: blocked
-                            ? Colors.grey
-                            : selected
-                                ? Colors.white
-                                : Colors.black,
-                        fontWeight: FontWeight.w600,
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Center(
+            child: Container(
+              width: MediaQuery.of(dctx).size.width * 0.9,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ================= HEADER =================
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                    decoration: const BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Select Time Slot — ${DateFormat('d MMM yyyy').format(day)}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dctx),
+                          icon: const Icon(Icons.close, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ================= BODY =================
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: slots.map((slot) {
+                        final blocked =
+                            _isBusySlotBlocked(day, slot, events, busy);
+
+                        return SizedBox(
+                          width: 110,
+                          child: ElevatedButton(
+                            onPressed: blocked
+                                ? null
+                                : () {
+                                    dialogSetState(() => _busyTime = slot);
+                                    Navigator.pop(dctx);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  blocked ? Colors.grey.shade300 : Colors.white,
+                              foregroundColor:
+                                  blocked ? Colors.grey : Colors.black87,
+                              elevation: blocked ? 0 : 2,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              slot.format(ctx),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -776,7 +815,17 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     );
   }
 
-  bool _isSlotBlocked(
+  List<TimeOfDay> _generateBusySlots() {
+    final slots = <TimeOfDay>[];
+    for (int h = _slotStartHour; h <= _slotEndHour; h++) {
+      for (int m = 0; m < 60; m += _slotMinutesStep) {
+        slots.add(TimeOfDay(hour: h, minute: m));
+      }
+    }
+    return slots;
+  }
+
+  bool _isBusySlotBlocked(
     DateTime day,
     TimeOfDay slot,
     List<CalendarEvent> events,
@@ -789,16 +838,5 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         .any((b) => b.time.hour == slot.hour && b.time.minute == slot.minute);
 
     return booked || doctorBusy;
-  }
-
-  List<TimeOfDay> _generateSlots() {
-    final slots = <TimeOfDay>[];
-    for (int h = 9; h <= 17; h++) {
-      slots.add(TimeOfDay(hour: h, minute: 0));
-      if (!(h == 17)) {
-        slots.add(TimeOfDay(hour: h, minute: 30));
-      }
-    }
-    return slots;
   }
 }

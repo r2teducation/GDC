@@ -84,7 +84,7 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
 
   // ───────── TIME SLOT CONFIG ─────────
   final int _slotStartHour = 9;
-  final int _slotEndHour = 17;
+  final int _slotEndHour = 21;
   final int _slotMinutesStep = 30;
 
   // ───────── VITALS ─────────
@@ -175,54 +175,104 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
 
     final picked = await showDialog<TimeOfDay>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Select time — ${DateFormat('d MMM yyyy').format(widget.date)}',
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: slots.map((s) {
-              final key = _hhmm(s);
-              final taken = occupied.containsKey(key);
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Center(
+            child: Container(
+              width: MediaQuery.of(ctx).size.width * 0.9,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ================= HEADER =================
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                    decoration: const BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Select Time Slot — ${DateFormat('d MMM yyyy').format(widget.date)}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          splashRadius: 18,
+                        ),
+                      ],
+                    ),
+                  ),
 
-              return SizedBox(
-                width: 110,
-                child: ElevatedButton(
-                  onPressed: taken ? null : () => Navigator.pop(ctx, s),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        taken ? Colors.grey.shade300 : Colors.white,
-                    foregroundColor:
-                        taken ? Colors.grey.shade600 : Colors.black87,
-                    elevation: taken ? 0 : 2,
-                    side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  // ================= BODY =================
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.maxFinite,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: slots.map((s) {
+                          final key = _hhmm(s);
+                          final taken = occupied.containsKey(key);
+
+                          return SizedBox(
+                            width: 110,
+                            child: ElevatedButton(
+                              onPressed:
+                                  taken ? null : () => Navigator.pop(ctx, s),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    taken ? Colors.grey.shade300 : Colors.white,
+                                foregroundColor: taken
+                                    ? Colors.grey.shade600
+                                    : Colors.black87,
+                                elevation: taken ? 0 : 2,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                s.format(ctx),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                  child: Text(
-                    s.format(ctx),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+                ],
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (picked != null) {

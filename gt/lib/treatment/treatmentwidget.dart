@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -1340,6 +1341,19 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
           children: [
             _pillButton(
               label: 'Close',
+              background: const Color(0xFFE5E7EB),
+              foreground: const Color(0xFF111827),
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
+                  (route) => false, // 🔥 clears back stack
+                );
+              },
+            ),
+            const SizedBox(width: 12),
+            _pillButton(
+              label: 'Reset',
               background: const Color(0xFFE5E7EB),
               foreground: const Color(0xFF111827),
               onPressed: _clearForm,

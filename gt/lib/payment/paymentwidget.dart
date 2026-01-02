@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gt/homelayout.dart';
 
 class PaymentWidget extends StatefulWidget {
   const PaymentWidget({super.key});
@@ -332,7 +333,13 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               label: 'Close',
               background: const Color(0xFFE5E7EB),
               foreground: const Color(0xFF111827),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
+                  (route) => false, // 🔥 clears back stack
+                );
+              },
             ),
             const SizedBox(width: 12),
             _pillButton(

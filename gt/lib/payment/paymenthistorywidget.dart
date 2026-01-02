@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
 
 class PaymentHistoryWidget extends StatefulWidget {
@@ -291,7 +292,13 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               label: 'Close',
               background: const Color(0xFFE5E7EB),
               foreground: const Color(0xFF111827),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
+                  (route) => false, // 🔥 clears back stack
+                );
+              },
             ),
           ],
         ),
