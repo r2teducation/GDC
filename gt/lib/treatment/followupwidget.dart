@@ -21,6 +21,7 @@ class FollowUpWidget extends StatefulWidget {
 }
 
 class _FollowUpWidgetState extends State<FollowUpWidget> {
+  final Set<String> _registeredViews = {};
   String? _chiefComplaintDoctorNotes;
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
@@ -81,27 +82,31 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     final viewType = 'scan-image-${url.hashCode}';
 
     if (kIsWeb) {
-      ui_web.platformViewRegistry.registerViewFactory(
-        viewType,
-        (int viewId) {
-          final img = html.ImageElement()
-            ..src = url
-            ..style.width = '100%'
-            ..style.height = '100%'
-            ..style.objectFit = 'contain';
+      if (!_registeredViews.contains(viewType)) {
+        ui_web.platformViewRegistry.registerViewFactory(
+          viewType,
+          (int viewId) {
+            final img = html.ImageElement()
+              ..src = url
+              ..style.width = '100%'
+              ..style.height = '100%'
+              ..style.objectFit = 'contain'
+              ..style.backgroundColor = 'black';
 
-          return img;
-        },
+            return img;
+          },
+        );
+
+        _registeredViews.add(viewType);
+      }
+
+      // ✅ MUST give size
+      return SizedBox.expand(
+        child: HtmlElementView(viewType: viewType),
       );
-
-      return HtmlElementView(viewType: viewType);
     }
 
-    // Fallback for mobile / desktop
-    return Image.network(
-      url,
-      fit: BoxFit.contain,
-    );
+    return Image.network(url, fit: BoxFit.contain);
   }
 
   // ======================================================
@@ -315,7 +320,13 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
               ),
               itemBuilder: (context, index) {
                 final scan = _treatmentScans[index];
-                return _scanThumbnail(scan['imageUrl']);
+                final imageUrl = scan['imageUrl'] as String?;
+
+                if (imageUrl == null || imageUrl.isEmpty) {
+                  return _emptyThumbnail();
+                }
+
+                return _scanThumbnail(imageUrl);
               },
             );
           },
@@ -328,23 +339,75 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     return NetworkImage(url);
   }
 
+  Widget webThumbnail(String url) {
+    final viewType = 'thumb-${url.hashCode}';
+
+    ui_web.platformViewRegistry.registerViewFactory(
+      viewType,
+      (int viewId) {
+        final img = html.ImageElement()
+          ..src = url
+          ..style.width = '100%'
+          ..style.height = '100%'
+          ..style.objectFit = 'cover'
+          ..style.borderRadius = '12px';
+
+        return img;
+      },
+    );
+
+    return HtmlElementView(viewType: viewType);
+  }
+
+  Widget _emptyThumbnail() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: Colors.grey,
+          size: 32,
+        ),
+      ),
+    );
+  }
+
   Widget _scanThumbnail(String imageUrl) {
     final safeUrl = imageUrl.trim();
 
-    debugPrint('[FollowUpWidget] imageUrl: $safeUrl');
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Stack(
+          children: [
+            // 🖼️ HTML image (renders correctly)
+            Positioned.fill(
+              child: kIsWeb
+                  ? webThumbnail(safeUrl)
+                  : Image.network(
+                      safeUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _emptyThumbnail(),
+                    ),
+            ),
 
-    return InkWell(
-      onTap: () => _openScanPreview(safeUrl),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: Image.network(
-            safeUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.broken_image, size: 32),
-          ),
+            // 🟦 Invisible tap layer (CRITICAL)
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _openScanPreview(safeUrl),
+                  splashColor: Colors.black12,
+                  highlightColor: Colors.transparent,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -403,11 +466,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   }
 
   Widget _previewImage(String imageUrl) {
-    return SizedBox(
-      width: 900,
-      height: 600,
-      child: webImage(imageUrl),
-    );
+    return webImage(imageUrl);
   }
 
   // ======================================================
