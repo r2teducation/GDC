@@ -12,11 +12,14 @@ class PatientSummaryWidget extends StatefulWidget {
 }
 
 class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
+  double _treatmentTotalCost = 0;
   String? _chiefComplaintDoctorNotes;
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
-  // ---------------- Payment Status ----------------
+// ---------------- Payments ----------------
+  List<Map<String, dynamic>> _payments = [];
+
   double _totalPaid = 0;
   double _totalAmount = 0;
 
@@ -134,19 +137,22 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     }
 
     setState(() => _loadingChiefComplaint = true);
+    double fetchedTreatmentCost = 0;
 
     try {
       final treatSnap = await _db
           .collection('treatments')
           .where('patientId', isEqualTo: v)
+          .orderBy('treatmentDate', descending: true)
+          .limit(1)
           .get();
 
-      treatSnap.docs.sort((a, b) {
-        final ta = a['treatmentDate'] as Timestamp?;
-        final tb = b['treatmentDate'] as Timestamp?;
-        return (ta?.millisecondsSinceEpoch ?? 0)
-            .compareTo(tb?.millisecondsSinceEpoch ?? 0);
-      });
+      // ---- Treatment document ----
+
+      if (treatSnap.docs.isNotEmpty) {
+        final data = treatSnap.docs.first.data();
+        fetchedTreatmentCost = (data['treatmentAmount'] ?? 0).toDouble();
+      }
 
       if (treatSnap.docs.isNotEmpty) {
         final data = treatSnap.docs.first.data();
@@ -198,27 +204,32 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     setState(() => _loadingPayments = true);
 
     try {
-      final paySnap = await _db
+      final snap = await _db
           .collection('payments')
           .where('patientId', isEqualTo: v)
+          .orderBy('paidAt', descending: true)
           .get();
 
+      final payments = snap.docs.map((d) => d.data()).toList();
+
+      // ---- Calculate Treatment-only totals ----
       double paid = 0;
 
-      final rows = paySnap.docs.map((d) {
-        final data = d.data();
-        paid += (data['amount'] ?? 0).toDouble();
-        return data;
-      }).toList();
+      for (final p in payments) {
+        if (p['paymentFor'] == 'Treatment') {
+          paid += (p['amount'] ?? 0).toDouble();
+        }
+      }
 
       setState(() {
-        _paymentHistory = rows;
+        _treatmentTotalCost = fetchedTreatmentCost;
+        _payments = payments;
         _totalPaid = paid;
-        _totalAmount = paid == 0 ? 0 : paid * 2; // TEMP placeholder
+        _totalAmount = fetchedTreatmentCost; // ✅ guaranteed correct
       });
     } catch (_) {
       setState(() {
-        _paymentHistory = [];
+        _payments = [];
         _totalPaid = 0;
         _totalAmount = 0;
       });
@@ -227,78 +238,10 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     }
   }
 
-  Widget _paymentStatusBar1() {
-    if (_totalAmount <= 0) return const SizedBox.shrink();
-
-    final double percent = (_totalPaid / _totalAmount).clamp(0, 1);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // ---- Labels ----
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Paid: ₹${_totalPaid.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF4B5563),
-              ),
-            ),
-            Text(
-              'Total: ₹${_totalAmount.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF4B5563),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-
-        // ---- Progress Bar ----
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            height: 18,
-            width: 260,
-            color: const Color(0xFFE5E7EB),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: percent,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFFB91C1C), // red
-                      Color(0xFFF59E0B), // amber
-                      Color(0xFF16A34A), // green
-                    ],
-                  ),
-                ),
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 10),
-                child: Text(
-                  '${(percent * 100).round()}%',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _paymentStatusBar() {
-    if (_totalAmount <= 0) return const SizedBox.shrink();
+    if (_totalAmount <= 0 || _loadingPayments) {
+      return const SizedBox.shrink();
+    }
 
     final double percent = (_totalPaid / _totalAmount).clamp(0, 1);
 
@@ -381,7 +324,7 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       );
     }
 
-    if (_paymentHistory.isEmpty) {
+    if (_payments.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -407,8 +350,8 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
           _paymentsTableHeader(),
 
           // ===== TABLE ROWS =====
-          ...List.generate(_paymentHistory.length, (i) {
-            final p = _paymentHistory[i];
+          ...List.generate(_payments.length, (i) {
+            final p = _payments[i];
             final bool alt = i.isEven;
 
             return _paymentsTableRow(
@@ -434,8 +377,9 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
         children: [
           SizedBox(width: 40, child: Text('No')),
           Expanded(child: Text('Details')),
-          SizedBox(width: 100, child: Text('Amount')),
-          SizedBox(width: 100, child: Text('Mode')),
+          SizedBox(width: 100, child: Text('Purpose')), // 👈 NEW
+          SizedBox(width: 90, child: Text('Amount')),
+          SizedBox(width: 80, child: Text('Mode')),
           SizedBox(width: 160, child: Text('Paid At')),
         ],
       ),
@@ -469,14 +413,30 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
               style: const TextStyle(color: _readOnlyText),
             ),
           ),
+
+          // Details
           Expanded(
             child: Text(
               data['details'] ?? '--',
               style: const TextStyle(color: _readOnlyText),
             ),
           ),
+
+          // Purpose 👈 NEW
           SizedBox(
             width: 100,
+            child: Text(
+              data['paymentFor'] ?? '--',
+              style: const TextStyle(
+                color: _readOnlyText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+
+          // Amount
+          SizedBox(
+            width: 90,
             child: Text(
               '₹${data['amount'] ?? 0}',
               style: const TextStyle(
@@ -485,13 +445,17 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
               ),
             ),
           ),
+
+          // Mode
           SizedBox(
-            width: 100,
+            width: 80,
             child: Text(
               data['paymentMode'] ?? '--',
               style: const TextStyle(color: _readOnlyText),
             ),
           ),
+
+          // Paid At
           SizedBox(
             width: 160,
             child: Text(
