@@ -16,6 +16,10 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   final _formKey = GlobalKey<FormState>();
   final _db = FirebaseFirestore.instance;
 
+  // ---------------- Scans ----------------
+  List<Map<String, dynamic>> _treatmentScans = [];
+  bool _loadingScans = false;
+
   static const Color _readOnlyText = Color(0xFF6B7280); // slate-500
   static const Color _readOnlyHeading = Color(0xFF4B5563); // slate-600
   static const Color _readOnlyDivider = Color(0xFFE5E7EB); // light grey
@@ -105,6 +109,8 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
 
     if (v == null) return;
 
+    await _loadLatestTreatmentScans(v);
+
     setState(() => _loadingHealthSnapshot = true);
 
     try {
@@ -189,6 +195,194 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     } finally {
       if (mounted) setState(() => _loadingFollowUps = false);
     }
+  }
+
+  Future<void> _loadLatestTreatmentScans(String patientId) async {
+    setState(() {
+      _loadingScans = true;
+      _treatmentScans = [];
+    });
+
+    try {
+      // 1️⃣ Get latest treatment
+      final treatmentSnap = await _db
+          .collection('treatments')
+          .where('patientId', isEqualTo: patientId)
+          .orderBy('treatmentDate', descending: true)
+          .limit(1)
+          .get();
+
+      if (treatmentSnap.docs.isEmpty) return;
+
+      final treatmentDoc = treatmentSnap.docs.first;
+
+      // 2️⃣ Get scans sub-collection
+      final scansSnap = await treatmentDoc.reference.collection('scans').get();
+
+      setState(() {
+        _treatmentScans = scansSnap.docs.map((d) => d.data()).toList();
+      });
+    } catch (_) {
+      // silent fail
+    } finally {
+      if (mounted) setState(() => _loadingScans = false);
+    }
+  }
+
+  Widget _scansPanel() {
+    if (_loadingScans) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_treatmentScans.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No scans available',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Scans',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: _readOnlyHeading,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Divider(color: _readOnlyDivider, thickness: 0.6),
+        const SizedBox(height: 12),
+
+        // 📸 Thumbnails grid
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = constraints.maxWidth > 900 ? 5 : 3;
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _treatmentScans.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1, // ✅ square grid cells
+              ),
+              itemBuilder: (context, index) {
+                final scan = _treatmentScans[index];
+                return _scanThumbnail(scan['imageUrl']);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _scanThumbnail(String imageUrl) {
+    return InkWell(
+      onTap: () => _openScanPreview(imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: 1, // ✅ square thumbnails
+          child: Container(
+            color: Colors.grey.shade200,
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
+              },
+              errorBuilder: (context, error, stack) {
+                return const Center(
+                  child: Icon(Icons.broken_image, size: 32, color: Colors.grey),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openScanPreview(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.85),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(24),
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.broken_image,
+                                size: 56, color: Colors.white70),
+                            SizedBox(height: 8),
+                            Text(
+                              'Unable to load image',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              // ❌ Close button
+              Positioned(
+                top: 16,
+                right: 16,
+                child: InkWell(
+                  onTap: () => Navigator.pop(ctx),
+                  child: const CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.black54,
+                    child: Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ======================================================
@@ -937,6 +1131,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
             _patientHealthPanel(),
             _chiefComplaintSnapshotPanel(),
             _previousFollowUpsPanel(),
+            _scansPanel(),
             _sectionHeader('Doctor Notes'),
             TextFormField(
               controller: _doctorNotesCtrl,
