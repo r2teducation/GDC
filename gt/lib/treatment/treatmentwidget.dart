@@ -975,6 +975,56 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     );
   }
 
+  Future<void> _uploadTreatmentScans({
+    required DocumentReference treatmentRef,
+  }) async {
+    if (_selectedScans.isEmpty) return;
+
+    setState(() => _uploadingScans = true);
+
+    int uploadedCount = 0;
+
+    try {
+      for (final scan in _selectedScans) {
+        final scanId = const Uuid().v4();
+
+        final storageRef = FirebaseStorage.instance
+            .ref('treatments/${treatmentRef.id}/scans/$scanId.jpg');
+
+        String downloadUrl;
+
+        if (kIsWeb) {
+          final bytes = await scan.readAsBytes();
+          final task = await storageRef.putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          downloadUrl = await task.ref.getDownloadURL();
+        } else {
+          final task = await storageRef.putFile(File(scan.path));
+          downloadUrl = await task.ref.getDownloadURL();
+        }
+
+        // 🔥 SAVE URL IN FIRESTORE (THIS WAS THE ROOT CAUSE EARLIER)
+        await treatmentRef.collection('scans').doc(scanId).set({
+          'imageUrl': downloadUrl,
+          'fileName': scan.name,
+          'uploadedAt': FieldValue.serverTimestamp(),
+        });
+
+        uploadedCount++;
+      }
+
+      // ✅ Update scan indicators ONLY AFTER success
+      await treatmentRef.update({
+        'hasScans': uploadedCount > 0,
+        'scanCount': uploadedCount,
+      });
+    } finally {
+      if (mounted) setState(() => _uploadingScans = false);
+    }
+  }
+
   // ======================================================
 // Save
 // ======================================================
@@ -993,13 +1043,12 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     setState(() => _saving = true);
 
     try {
-      // 1️⃣ Save treatment meta to Firestore
+      // 1️⃣ Save treatment meta
       final treatmentRef = await _db.collection('treatments').add({
         'patientId': _selectedPatientId,
         'treatmentDate': Timestamp.fromDate(_selectedDate),
         'treatmentAmount': double.parse(_treatmentAmountCtrl.text),
         'doctorNotes': _doctorNotesCtrl.text.trim(),
-
         'problems': _problems
             .map((p) => {
                   'teeth': p.teeth,
@@ -1007,7 +1056,6 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                   'notes': p.notes,
                 })
             .toList(),
-
         'prescribedMedicinesCart': _medicineCart
             .map((m) => {
                   'medicineId': m['medicineId'],
@@ -1015,57 +1063,14 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                   'quantity': m['quantity'],
                 })
             .toList(),
-
-        // 🔍 OPTIONAL scan indicators
-        'hasScans': _selectedScans.isNotEmpty,
-        'scanCount': _selectedScans.length,
-
+        'hasScans': false, // 👈 TEMP
+        'scanCount': 0, // 👈 TEMP
         'cartFulfilled': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2️⃣ Upload scans to Firebase Storage (PLATFORM SAFE)
-      if (_selectedScans.isNotEmpty) {
-        setState(() => _uploadingScans = true);
-
-        for (final scan in _selectedScans) {
-          final scanId = const Uuid().v4();
-
-          final storageRef = FirebaseStorage.instance
-              .ref()
-              .child('patients')
-              .child(_selectedPatientId!)
-              .child('treatments')
-              .child(treatmentRef.id)
-              .child('scans')
-              .child('$scanId.jpg');
-
-          String downloadUrl;
-
-          if (kIsWeb) {
-            // 🌐 WEB → upload bytes
-            final bytes = await scan.readAsBytes();
-            final uploadTask = await storageRef.putData(
-              bytes,
-              SettableMetadata(contentType: 'image/jpeg'),
-            );
-            downloadUrl = await uploadTask.ref.getDownloadURL();
-          } else {
-            // 📱 MOBILE / DESKTOP → upload file
-            final uploadTask = await storageRef.putFile(File(scan.path));
-            downloadUrl = await uploadTask.ref.getDownloadURL();
-          }
-
-          // 3️⃣ Save scan metadata under treatment
-          await treatmentRef.collection('scans').doc(scanId).set({
-            'imageUrl': downloadUrl,
-            'uploadedAt': FieldValue.serverTimestamp(),
-            'fileName': scan.name,
-          });
-        }
-
-        setState(() => _uploadingScans = false);
-      }
+// 2️⃣ Upload scans (if any)
+      await _uploadTreatmentScans(treatmentRef: treatmentRef);
 
       if (!mounted) return;
 
@@ -1559,8 +1564,16 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
 
   Widget _scanPreview(XFile scan) {
     return kIsWeb
-        ? Image.network(scan.path, fit: BoxFit.cover)
-        : Image.file(File(scan.path), fit: BoxFit.cover);
+        ? Image.network(
+            scan.path,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.broken_image, size: 48),
+          )
+        : Image.file(
+            File(scan.path),
+            fit: BoxFit.cover,
+          );
   }
 
   void _openAddMedicineDialog() {

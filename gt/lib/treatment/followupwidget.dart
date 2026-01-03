@@ -3,6 +3,15 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import 'dart:ui' as ui; // required for HtmlElementView
+
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+
+// ignore: uri_does_not_exist
+import 'dart:ui_web' as ui_web;
 
 class FollowUpWidget extends StatefulWidget {
   const FollowUpWidget({super.key});
@@ -66,6 +75,33 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     _searchCtrl.dispose();
     _doctorNotesCtrl.dispose();
     super.dispose();
+  }
+
+  Widget webImage(String url) {
+    final viewType = 'scan-image-${url.hashCode}';
+
+    if (kIsWeb) {
+      ui_web.platformViewRegistry.registerViewFactory(
+        viewType,
+        (int viewId) {
+          final img = html.ImageElement()
+            ..src = url
+            ..style.width = '100%'
+            ..style.height = '100%'
+            ..style.objectFit = 'contain';
+
+          return img;
+        },
+      );
+
+      return HtmlElementView(viewType: viewType);
+    }
+
+    // Fallback for mobile / desktop
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+    );
   }
 
   // ======================================================
@@ -288,30 +324,26 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     );
   }
 
+  ImageProvider _networkImage(String url) {
+    return NetworkImage(url);
+  }
+
   Widget _scanThumbnail(String imageUrl) {
+    final safeUrl = imageUrl.trim();
+
+    debugPrint('[FollowUpWidget] imageUrl: $safeUrl');
+
     return InkWell(
-      onTap: () => _openScanPreview(imageUrl),
+      onTap: () => _openScanPreview(safeUrl),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: AspectRatio(
-          aspectRatio: 1, // ✅ square thumbnails
-          child: Container(
-            color: Colors.grey.shade200,
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                );
-              },
-              errorBuilder: (context, error, stack) {
-                return const Center(
-                  child: Icon(Icons.broken_image, size: 32, color: Colors.grey),
-                );
-              },
-            ),
+          aspectRatio: 1,
+          child: Image.network(
+            safeUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.broken_image, size: 32),
           ),
         ),
       ),
@@ -321,60 +353,41 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   void _openScanPreview(String imageUrl) {
     showDialog(
       context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.85),
+      barrierColor: Colors.black.withOpacity(0.9),
       builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(24),
+          insetPadding: EdgeInsets.zero, // 🔥 full-screen dialog
           child: Stack(
             children: [
+              // ✅ Perfect center alignment
               Center(
                 child: InteractiveViewer(
-                  minScale: 0.5,
+                  minScale: 0.8,
                   maxScale: 4,
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.broken_image,
-                                size: 56, color: Colors.white70),
-                            SizedBox(height: 8),
-                            Text(
-                              'Unable to load image',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                  boundaryMargin: const EdgeInsets.all(80),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: size.width * 0.9,
+                      maxHeight: size.height * 0.9,
+                    ),
+                    child: _previewImage(imageUrl),
                   ),
                 ),
               ),
 
-              // ❌ Close button
+              // ❌ Close button (top-right, fixed)
               Positioned(
-                top: 16,
-                right: 16,
+                top: 24,
+                right: 24,
                 child: InkWell(
                   onTap: () => Navigator.pop(ctx),
                   child: const CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.black54,
-                    child: Icon(Icons.close, color: Colors.white, size: 20),
+                    child: Icon(Icons.close, color: Colors.white),
                   ),
                 ),
               ),
@@ -382,6 +395,18 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           ),
         );
       },
+    );
+  }
+
+  String cleanUrl(String url) {
+    return Uri.encodeFull(url.trim());
+  }
+
+  Widget _previewImage(String imageUrl) {
+    return SizedBox(
+      width: 900,
+      height: 600,
+      child: webImage(imageUrl),
     );
   }
 
