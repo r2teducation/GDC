@@ -595,70 +595,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   // ======================================================
   // Add Problem Dialog (MATCHES _showDayDetailsDialog STYLE)
   // ======================================================
-  final Map<int, Map<String, TextEditingController>> rctInputs = {};
-  final Map<int, TextEditingController> rctOtherInputs = {};
 
   void _openAddProblemDialog() {
-    final Set<int> selectedTeeth = {};
-    String? problemType;
+    final dialogState = AddProblemDialogState();
     final TextEditingController notesCtrl = TextEditingController();
-
-    List<String> _getCanalsForTooth(int tooth) {
-      if ([11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43].contains(tooth)) {
-        return ['Single'];
-      }
-      if ([14, 24, 15, 25].contains(tooth)) {
-        return ['Buccal', 'Palatal'];
-      }
-      if ([34, 44, 35, 45].contains(tooth)) {
-        return ['Buccal', 'Lingual'];
-      }
-      if ([16, 26, 17, 27, 18, 28].contains(tooth)) {
-        return ['Palatal', 'Mesial', 'Distal'];
-      }
-      if ([36, 46, 37, 47, 38, 48].contains(tooth)) {
-        return ['Mesial', 'Distal', 'Lingual', 'Distal 2'];
-      }
-      return [];
-    }
 
     final maxWidth = MediaQuery.of(context).size.width * 0.9;
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
-
-    String _buildRootCanalPrefix() {
-      final buffer = StringBuffer();
-
-      for (final tooth in selectedTeeth.toList()..sort()) {
-        final canalMap = rctInputs[tooth];
-        final othersCtrl = rctOtherInputs[tooth];
-
-        final parts = <String>[];
-
-        // Buccal / Lingual / Palatal / etc.
-        if (canalMap != null) {
-          for (final entry in canalMap.entries) {
-            final val = entry.value.text.trim();
-            if (val.isNotEmpty) {
-              parts.add('${entry.key}: ${val}mm');
-            }
-          }
-        }
-
-        // ✅ FIX: append `mm` for Others as well
-        if (othersCtrl != null) {
-          final otherVal = othersCtrl.text.trim();
-          if (otherVal.isNotEmpty) {
-            parts.add('Others: ${otherVal}mm');
-          }
-        }
-
-        if (parts.isNotEmpty) {
-          buffer.write('[ Tooth $tooth – ${parts.join(', ')} ] ');
-        }
-      }
-
-      return buffer.toString();
-    }
 
     showDialog(
       context: context,
@@ -674,26 +617,11 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
               child: StatefulBuilder(
                 builder: (context, setStateDialog) {
                   Widget toothBox(int number) {
-                    final selected = selectedTeeth.contains(number);
+                    final selected = dialogState.selectedTeeth.contains(number);
                     return InkWell(
                       onTap: () {
                         setStateDialog(() {
-                          if (selected) {
-                            selectedTeeth.remove(number);
-                            rctInputs.remove(number);
-                          } else {
-                            selectedTeeth.add(number);
-                            if (problemType == 'Root Canal') {
-                              final canals = _getCanalsForTooth(number);
-
-                              rctInputs[number] = {
-                                for (final c in canals)
-                                  c: TextEditingController()
-                              };
-
-                              rctOtherInputs[number] = TextEditingController();
-                            }
-                          }
+                          dialogState.toggleTooth(number);
                         });
                       },
                       child: Container(
@@ -769,9 +697,17 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                 ),
                               ),
                               IconButton(
-                                onPressed: () => Navigator.of(dctx).pop(),
                                 icon: const Icon(Icons.close,
                                     color: Colors.white),
+                                onPressed: () {
+                                  Navigator.of(dctx).pop();
+
+                                  // Dispose AFTER dialog is fully removed
+                                  Future.microtask(() {
+                                    dialogState.dispose();
+                                    notesCtrl.dispose();
+                                  });
+                                },
                               ),
                             ],
                           ),
@@ -833,9 +769,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
 
                                   onChanged: (v) {
                                     setStateDialog(() {
-                                      problemType = v;
-                                      rctInputs.clear();
-                                      rctOtherInputs.clear();
+                                      dialogState.setProblemType(v);
                                     });
                                   },
 
@@ -868,11 +802,13 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                         EdgeInsets.symmetric(horizontal: 16),
                                   ),
                                 ),
-                                if (problemType == 'Root Canal' &&
-                                    selectedTeeth.isNotEmpty)
+                                if (dialogState.problemType == 'Root Canal' &&
+                                    dialogState.selectedTeeth.isNotEmpty)
                                   Column(
-                                    children: selectedTeeth.map((tooth) {
-                                      final canals = rctInputs[tooth] ?? {};
+                                    children:
+                                        dialogState.selectedTeeth.map((tooth) {
+                                      final canals =
+                                          dialogState.rctInputs[tooth] ?? {};
                                       return Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -903,8 +839,8 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                                 ),
                                               ),
                                               TextFormField(
-                                                controller:
-                                                    rctOtherInputs[tooth],
+                                                controller: dialogState
+                                                    .rctOtherInputs[tooth],
                                                 decoration:
                                                     _dec('Others (mm / notes)'),
                                               ),
@@ -933,22 +869,34 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                             children: [
                               ElevatedButton(
                                 onPressed: () {
-                                  if (selectedTeeth.isEmpty ||
-                                      problemType == null) return;
+                                  if (dialogState.selectedTeeth.isEmpty ||
+                                      dialogState.problemType == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Please select teeth and problem type')),
+                                    );
+                                    return;
+                                  }
+
                                   setState(() {
                                     String finalNotes = notesCtrl.text.trim();
 
-                                    if (problemType == 'Root Canal') {
-                                      final prefix = _buildRootCanalPrefix();
+                                    if (dialogState.problemType ==
+                                        'Root Canal') {
+                                      final prefix =
+                                          dialogState.buildRootCanalPrefix();
                                       finalNotes = '$prefix$finalNotes'.trim();
                                     }
 
                                     _problems.add(_ProblemRow(
-                                      teeth: selectedTeeth.toList()..sort(),
-                                      type: problemType!,
+                                      teeth: dialogState.selectedTeeth.toList(),
+                                      type: dialogState.problemType!,
                                       notes: finalNotes,
                                     ));
                                   });
+
+                                  dialogState.dispose();
                                   Navigator.of(dctx).pop();
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -1882,4 +1830,120 @@ class _PatientOption {
   final String id;
   final String label;
   _PatientOption({required this.id, required this.label});
+}
+
+class AddProblemDialogState {
+  final Set<int> selectedTeeth = {};
+  String? problemType;
+
+  final Map<int, Map<String, TextEditingController>> rctInputs = {};
+  final Map<int, TextEditingController> rctOtherInputs = {};
+
+  // ---------- Domain rule ----------
+  List<String> getCanalsForTooth(int tooth) {
+    if ([11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43].contains(tooth)) {
+      return ['Single'];
+    }
+    if ([14, 24, 15, 25].contains(tooth)) {
+      return ['Buccal', 'Palatal'];
+    }
+    if ([34, 44, 35, 45].contains(tooth)) {
+      return ['Buccal', 'Lingual'];
+    }
+    if ([16, 26, 17, 27, 18, 28].contains(tooth)) {
+      return ['Palatal', 'Mesial', 'Distal'];
+    }
+    if ([36, 46, 37, 47, 38, 48].contains(tooth)) {
+      return ['Mesial', 'Distal', 'Lingual', 'Distal 2'];
+    }
+    return [];
+  }
+
+  // ---------- Core reconciliation ----------
+  void reconcile() {
+    if (problemType != 'Root Canal') {
+      _clearAll();
+      return;
+    }
+
+    // remove orphan teeth
+    for (final tooth in rctInputs.keys.toList()) {
+      if (!selectedTeeth.contains(tooth)) {
+        _disposeTooth(tooth);
+      }
+    }
+
+    // ensure controllers exist
+    for (final tooth in selectedTeeth) {
+      if (!rctInputs.containsKey(tooth)) {
+        _initTooth(tooth);
+      }
+    }
+  }
+
+  // ---------- Public API ----------
+  void toggleTooth(int tooth) {
+    selectedTeeth.contains(tooth)
+        ? selectedTeeth.remove(tooth)
+        : selectedTeeth.add(tooth);
+    reconcile();
+  }
+
+  void setProblemType(String? type) {
+    problemType = type;
+    reconcile();
+  }
+
+  String buildRootCanalPrefix() {
+    final buffer = StringBuffer();
+
+    for (final tooth in selectedTeeth.toList()..sort()) {
+      final parts = <String>[];
+
+      final canals = rctInputs[tooth];
+      if (canals != null) {
+        for (final e in canals.entries) {
+          if (e.value.text.trim().isNotEmpty) {
+            parts.add('${e.key}: ${e.value.text.trim()}mm');
+          }
+        }
+      }
+
+      final other = rctOtherInputs[tooth];
+      if (other != null && other.text.trim().isNotEmpty) {
+        parts.add('Others: ${other.text.trim()}mm');
+      }
+
+      if (parts.isNotEmpty) {
+        buffer.write('[ Tooth $tooth – ${parts.join(', ')} ] ');
+      }
+    }
+    return buffer.toString();
+  }
+
+  void dispose() {
+    _clearAll();
+    selectedTeeth.clear();
+  }
+
+  // ---------- Internals ----------
+  void _initTooth(int tooth) {
+    rctInputs[tooth] = {
+      for (final c in getCanalsForTooth(tooth)) c: TextEditingController()
+    };
+    rctOtherInputs[tooth] = TextEditingController();
+  }
+
+  void _disposeTooth(int tooth) {
+    rctInputs[tooth]?.values.forEach((c) => c.dispose());
+    rctInputs.remove(tooth);
+    rctOtherInputs[tooth]?.dispose();
+    rctOtherInputs.remove(tooth);
+  }
+
+  void _clearAll() {
+    for (final tooth in rctInputs.keys.toList()) {
+      _disposeTooth(tooth);
+    }
+  }
 }

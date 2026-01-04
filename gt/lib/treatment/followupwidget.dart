@@ -5,6 +5,18 @@ import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:gt/homelayout.dart';
+import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart';
+
 import 'dart:ui' as ui; // required for HtmlElementView
 
 // ignore: avoid_web_libraries_in_flutter
@@ -21,6 +33,21 @@ class FollowUpWidget extends StatefulWidget {
 }
 
 class _FollowUpWidgetState extends State<FollowUpWidget> {
+  List<Map<String, dynamic>> _medicineCart = [];
+  List<Map<String, dynamic>> _medicineStock = [];
+
+  // ---------------- Scans ----------------
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _selectedScans = [];
+  bool _uploadingScans = false;
+
+  final ButtonStyle _blackActionButtonStyle = ElevatedButton.styleFrom(
+    backgroundColor:
+        const Color(0xFF111827), // pure black used in header/footer
+    foregroundColor: Colors.white, // text + icon
+    elevation: 0, // flat, modern
+  );
+
   final Set<String> _registeredViews = {};
   String? _chiefComplaintDoctorNotes;
   final _formKey = GlobalKey<FormState>();
@@ -1214,8 +1241,74 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
             // 🔥 PATIENT HEALTH CONDITIONS PANEL
             _patientHealthPanel(),
             _chiefComplaintSnapshotPanel(),
-            _previousFollowUpsPanel(),
             _scansPanel(),
+            _previousFollowUpsPanel(),
+
+            // 💊 Medicine Prescription
+            _sectionHeader('Medicine Prescription'),
+            _buildMedicinePrescriptionTable(),
+
+            ElevatedButton.icon(
+              style: _blackActionButtonStyle,
+              onPressed: _openAddMedicineDialog,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Add Medicines'),
+            ),
+
+            _sectionHeader('Scans'),
+
+            if (_selectedScans.isEmpty)
+              const Text(
+                'No scans uploaded',
+                style: TextStyle(color: Colors.grey),
+              ),
+
+            if (_selectedScans.isNotEmpty)
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(_selectedScans.length, (index) {
+                  final scan = _selectedScans[index];
+
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: _scanPreview(scan),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedScans.removeAt(index);
+                            });
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.close,
+                                size: 18, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+
+            const SizedBox(height: 8),
+
+            ElevatedButton.icon(
+              style: _blackActionButtonStyle,
+              onPressed: _pickScans,
+              icon: const Icon(Icons.add_a_photo, color: Colors.white),
+              label: const Text('Add Scans'),
+            ),
+
             _sectionHeader('Doctor Notes'),
             TextFormField(
               controller: _doctorNotesCtrl,
@@ -1225,6 +1318,455 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _pickScans() async {
+    final List<XFile> images = await _imagePicker.pickMultiImage(
+      imageQuality: 70, // 🔥 compress (VERY IMPORTANT)
+      maxWidth: 1600,
+    );
+
+    if (images.isEmpty) return;
+
+    setState(() {
+      _selectedScans.addAll(images);
+    });
+  }
+
+  void _openAddMedicineDialog() {
+    final TextEditingController dialogSearchCtrl = TextEditingController();
+    String dialogSearch = '';
+
+    final maxWidth = MediaQuery.of(context).size.width * 0.9;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
+    showDialog(
+      context: context,
+      builder: (dctx) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              child: StatefulBuilder(
+                builder: (context, setDialogState) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= HEADER =================
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Add Medicines',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  dialogSearchCtrl.dispose();
+                                  Navigator.of(dctx).pop();
+                                },
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ================= BODY =================
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                /// 🔍 SEARCH
+                                TextField(
+                                  controller: dialogSearchCtrl,
+                                  onChanged: (v) {
+                                    setDialogState(() {
+                                      dialogSearch = v.trim().toLowerCase();
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    prefixIcon:
+                                        const Icon(Icons.search, size: 18),
+                                    hintText: 'Search medicine',
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 12),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                /// 📦 STOCK
+                                _buildMedicineStockForDialog(
+                                  dialogSearch,
+                                  setDialogState,
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                /// 🛒 CART
+                                if (_medicineCart.isNotEmpty)
+                                  _buildMedicineCart(setDialogState),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ================= FOOTER =================
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  dialogSearchCtrl.dispose();
+                                  setState(() {}); // refresh summary
+                                  Navigator.of(dctx).pop();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 26, vertical: 12),
+                                ),
+                                child: const Text('Done'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMedicineCart(void Function(void Function()) setDialogState) {
+    if (_medicineCart.isEmpty) return const SizedBox();
+
+    const double rowHeight = 56;
+    final double maxHeight = _medicineCart.length > 3
+        ? rowHeight * 3
+        : _medicineCart.length * rowHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Medicine Cart'),
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Quantity', 140),
+          ('', 60),
+        ]),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: maxHeight,
+          child: ListView.builder(
+            itemCount: _medicineCart.length,
+            itemBuilder: (context, index) {
+              final c = _medicineCart[index];
+
+              return _tableRow(children: [
+                SizedBox(width: 40, child: Text('${index + 1}')),
+                Expanded(child: Text(c['medicineName'])),
+
+                /// ➖ ➕ Quantity (FIXED)
+                SizedBox(
+                  width: 140,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove, size: 18),
+                        onPressed: c['quantity'] > 1
+                            ? () {
+                                setDialogState(() {
+                                  c['quantity']--;
+                                });
+                              }
+                            : null,
+                      ),
+                      Text(
+                        '${c['quantity']}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add, size: 18),
+                        onPressed: () {
+                          setDialogState(() {
+                            c['quantity']++;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                /// ❌ Remove
+                SizedBox(
+                  width: 60,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () {
+                      setDialogState(() {
+                        _medicineCart.removeAt(index);
+                      });
+                    },
+                  ),
+                ),
+              ]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tableHeader(List<(String, double?)> columns) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE6E6E6)),
+      ),
+      child: Row(
+        children: columns.map((c) {
+          return c.$2 == null
+              ? Expanded(
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)))
+              : SizedBox(
+                  width: c.$2!,
+                  child: Text(c.$1,
+                      style: const TextStyle(fontWeight: FontWeight.w600)));
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _tableRow({required List<Widget> children}) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(children: children),
+    );
+  }
+  
+  Widget _sectionTitle(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+      );
+
+  Widget _buildMedicineStockForDialog(
+    String search,
+    void Function(void Function()) setDialogState,
+  ) {
+    final filtered = _medicineStock.where((m) {
+      final name = (m['medicineName'] ?? '').toString().toLowerCase();
+      return search.isEmpty || name.contains(search);
+    }).toList();
+
+    const double rowHeight = 56;
+    final double maxHeight =
+        filtered.length > 3 ? rowHeight * 3 : filtered.length * rowHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Medicine Stock'),
+        _tableHeader(const [
+          ('S.No', 40),
+          ('Medicine Name', null),
+          ('Availability', 120),
+          ('', 80),
+        ]),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: maxHeight,
+          child: ListView.builder(
+            itemCount: filtered.length,
+            itemBuilder: (context, index) {
+              final m = filtered[index];
+
+              return _tableRow(children: [
+                SizedBox(width: 40, child: Text('${index + 1}')),
+                Expanded(child: Text(m['medicineName'])),
+                SizedBox(width: 120, child: Text('${m['availableQty']}')),
+                SizedBox(
+                  width: 80,
+                  child: TextButton(
+                    onPressed: () {
+                      setDialogState(() {
+                        _addToCart(m); // 🔥 CART UPDATES INSTANTLY
+                      });
+                    },
+                    child: const Text('Add'),
+                  ),
+                ),
+              ]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _addToCart(Map<String, dynamic> m) {
+    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
+
+    if (index >= 0) {
+      _medicineCart[index]['quantity'] += 1;
+    } else {
+      _medicineCart.add({
+        'medicineId': m['id'],
+        'medicineName': m['medicineName'],
+        'quantity': 1,
+        'price': null,
+      });
+    }
+    setState(() {});
+  }
+
+  Widget _scanPreview(XFile scan) {
+    return kIsWeb
+        ? Image.network(
+            scan.path,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.broken_image, size: 48),
+          )
+        : Image.file(
+            File(scan.path),
+            fit: BoxFit.cover,
+          );
+  }
+
+  Widget _buildMedicinePrescriptionTable() {
+    if (_medicineCart.isEmpty) {
+      return const Text(
+        'No medicines prescribed',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 🧾 Table Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 40,
+                child: Text(
+                  'S.No',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Medicine Name',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              SizedBox(
+                width: 80,
+                child: Text(
+                  'Qty',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        // 📋 Table Rows
+        ...List.generate(_medicineCart.length, (index) {
+          final m = _medicineCart[index];
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade200),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 40,
+                  child: Text('${index + 1}'),
+                ),
+                Expanded(
+                  child: Text(
+                    m['medicineName'],
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                SizedBox(
+                  width: 80,
+                  child: Text(
+                    '${m['quantity']}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 
