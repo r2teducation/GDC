@@ -223,6 +223,14 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
   }
 
   void _openTab(int index) {
+    // ✅ If same tab clicked again → close submenu
+    if (_activeTab == index && widget.overlay.showSubTabs) {
+      widget.overlay.close();
+      setState(() => _activeTab = -1);
+      return;
+    }
+
+    // ✅ Otherwise open submenu normally
     final box = _tabKeys[index].currentContext!.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset.zero);
 
