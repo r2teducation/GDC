@@ -384,8 +384,20 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           .orderBy('followUpDate', descending: true)
           .get();
 
+      final List<Map<String, dynamic>> enriched = [];
+
+      for (final doc in followSnap.docs) {
+        final data = doc.data();
+
+        final scansSnap = await doc.reference.collection('scans').get();
+
+        data['scans'] = scansSnap.docs.map((s) => s.data()).toList();
+
+        enriched.add(data);
+      }
+
       setState(() {
-        _previousFollowUps = followSnap.docs.map((d) => d.data()).toList();
+        _previousFollowUps = enriched;
       });
     } catch (_) {
       setState(() => _previousFollowUps = []);
