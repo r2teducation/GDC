@@ -118,9 +118,10 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     required String title,
     required String subtitle,
     required List<Widget> rows,
+    EdgeInsets margin = const EdgeInsets.symmetric(vertical: 12), // ✅ ADD
   }) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      margin: margin, // ✅ USE PARAM
       decoration: BoxDecoration(
         color: _tableBg,
         borderRadius: BorderRadius.circular(12),
@@ -380,7 +381,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
       final followSnap = await _db
           .collection('followups')
           .where('patientId', isEqualTo: v)
-          .orderBy('treatmentDate', descending: true)
+          .orderBy('followUpDate', descending: true)
           .get();
 
       setState(() {
@@ -650,7 +651,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 16), // ✅ top = 8
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -663,16 +664,15 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
               color: _readOnlyHeading,
             ),
           ),
-          const SizedBox(height: 8),
-          const Divider(color: _readOnlyDivider, thickness: 0.6),
           const SizedBox(height: 4),
+          const Divider(color: _readOnlyDivider, thickness: 0.6),
 
           /// ===== CONTENT =====
           for (final f in _previousFollowUps) ...[
             _infoTableCard(
               title: 'Follow Up',
               subtitle: DateFormat('EEEE dd-MMM-yyyy h:mm a')
-                  .format((f['treatmentDate'] as Timestamp).toDate()),
+                  .format((f['followUpDate'] as Timestamp).toDate()),
               rows: [
                 _tableRowItem(
                   'Notes',
@@ -719,13 +719,14 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     if (_selectedPatientId == null) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8), // ✅ OUTER GAP = 8
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _infoTableCard(
             title: 'Chief Complaint',
             subtitle: _chiefComplaintApptLabel ?? '',
+            margin: const EdgeInsets.symmetric(vertical: 0), // ✅ CRITICAL
             rows: [
               _tableRowItem(
                 'Problems',
@@ -735,10 +736,34 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: _chiefComplaintSnapshot.map((p) {
+                          final teeth =
+                              (p['teeth'] as List?)?.join(', ') ?? '--';
+                          final type = (p['type'] ?? 'Unknown').toString();
+                          final notes = (p['notes'] ?? '').toString().trim();
+
+                          final text = notes.isNotEmpty
+                              ? 'Teeth: $teeth — $type — $notes'
+                              : 'Teeth: $teeth — $type';
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 6),
-                            child: Text(
-                              'Teeth: ${(p['teeth'] as List).join(', ')} — ${p['type']}',
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: _readOnlyText,
+                                  height: 1.4,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: 'Teeth: $teeth — $type',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                  if (notes.isNotEmpty)
+                                    TextSpan(text: ' — $notes'),
+                                ],
+                              ),
                             ),
                           );
                         }).toList(),
@@ -855,7 +880,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
         : 'Unknown time';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 8), // ✅ bottom = 8
       child: _infoTableCard(
         title: 'Patient Health Snapshot',
         subtitle: apptLabel,
