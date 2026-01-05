@@ -157,13 +157,19 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
     );
   }
 
-  Widget _tableRowItem(String label, Widget content) {
+  Widget _tableRowItem(
+    String label,
+    Widget content, {
+    bool isLast = false,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: _tableBorder),
-        ),
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(color: _tableBorder),
+              ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -659,7 +665,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           ),
           const SizedBox(height: 8),
           const Divider(color: _readOnlyDivider, thickness: 0.6),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
 
           /// ===== CONTENT =====
           for (final f in _previousFollowUps) ...[
@@ -691,6 +697,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                   _smallScanGrid(
                     (f['scans'] as List<Map<String, dynamic>>?) ?? [],
                   ),
+                  isLast: true,
                 ),
               ],
             ),
@@ -758,6 +765,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
               _tableRowItem(
                 'Scans',
                 _smallScanGrid(_treatmentScans),
+                isLast: true, // ✅ IMPORTANT
               ),
             ],
           ),
@@ -878,6 +886,7 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
           _tableRowItem(
             'Consent',
             _renderConsent(consent),
+            isLast: true,
           ),
         ],
       ),
@@ -1272,6 +1281,8 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                 // 💊 Medicine Prescription
                 _sectionHeader('Medicine Prescription'),
                 _buildMedicinePrescriptionTable(),
+
+                const SizedBox(height: 8),
 
                 ElevatedButton.icon(
                   style: _blackActionButtonStyle,
