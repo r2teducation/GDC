@@ -20,6 +20,13 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   final _mobileCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
 
+  final List<Map<String, String>> _referredByOptions = const [
+    {'code': 'D', 'label': 'Doctor'},
+    {'code': 'P', 'label': 'Patient'},
+    {'code': 'O', 'label': 'Online'},
+    {'code': 'X', 'label': 'Other'},
+  ];
+
   // referred by (moved from Visits)
   String? _referredBy; // D / P / O / X
 
@@ -46,10 +53,6 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   // ---------------------------
   // Helpers / Validations
   // ---------------------------
-  String? _req(String? v, {String name = "This field"}) {
-    if (v == null || v.trim().isEmpty) return "$name is required";
-    return null;
-  }
 
   String? _nameVal(String? v, {String name = "This field"}) {
     if ((v ?? '').trim().isEmpty) return "$name is required";
@@ -84,19 +87,6 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
     final t = v!.trim();
     if (t.length < 2) return "Address must be at least 2 characters";
     if (t.length > 100) return "Address must be under 100 characters";
-    return null;
-  }
-
-  // gender helpers
-  String? _toCode(String? g) {
-    switch (g) {
-      case 'Male':
-        return 'M';
-      case 'Female':
-        return 'F';
-      case 'Other':
-        return 'O';
-    }
     return null;
   }
 
@@ -150,6 +140,22 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
     if (snap.docs.isEmpty) return null;
     return snap.docs.first.id;
+  }
+
+  void _resetForm() {
+    setState(() {
+      _patientIdCtrl.text = 'Auto-generated';
+      _firstNameCtrl.clear();
+      _lastNameCtrl.clear();
+      _ageCtrl.clear();
+      _mobileCtrl.clear();
+      _addressCtrl.clear();
+
+      _gender = null;
+      _referredBy = null;
+
+      _formKey.currentState?.reset();
+    });
   }
 
   // ---------------------------
@@ -234,12 +240,11 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
       // show success and set patient id in the form
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient Created')),
+        SnackBar(content: Text('Patient Created (ID: $patientId)')),
       );
 
-      setState(() {
-        _patientIdCtrl.text = patientId;
-      });
+      // 🔄 RESET FORM FOR NEXT ENTRY
+      _resetForm();
 
       // optionally clear form but keep the id visible — here we keep fields
     } catch (e) {
@@ -433,42 +438,27 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
                       ),
                       const SizedBox(height: 16),
                       _label("Referred By *"),
-                      DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: _referredBy,
-                        decoration: _dec("Select source"),
-                        items: const [
-                          DropdownMenuItem(value: 'D', child: Text("Doctor")),
-                          DropdownMenuItem(value: 'P', child: Text("Patient")),
-                          DropdownMenuItem(value: 'O', child: Text("Online")),
-                          DropdownMenuItem(value: 'X', child: Text("Other")),
-                        ],
-                        onChanged: (v) => setState(() => _referredBy = v),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return "Referred By is required";
-                          }
-                          return null;
-                        },
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 220,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                      Row(
+                        children: _referredByOptions.map((opt) {
+                          return Expanded(
+                            child: RadioListTile<String>(
+                              value: opt['code']!,
+                              groupValue: _referredBy,
+                              onChanged: (v) => setState(() => _referredBy = v),
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                opt['label']!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF111827),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                        menuItemStyleData: const MenuItemStyleData(
-                          height: 44,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                        ),
+                              activeColor: const Color(0xFF111827),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
