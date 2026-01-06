@@ -27,6 +27,12 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
     {'code': 'X', 'label': 'Other'},
   ];
 
+  final List<Map<String, String>> _genderOptions = const [
+    {'code': 'M', 'label': 'Male'},
+    {'code': 'F', 'label': 'Female'},
+    {'code': 'O', 'label': 'Other'},
+  ];
+
   // referred by (moved from Visits)
   String? _referredBy; // D / P / O / X
 
@@ -143,7 +149,10 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   }
 
   void _resetForm() {
+    FocusScope.of(context).unfocus();
+
     setState(() {
+      // 🔁 Text fields
       _patientIdCtrl.text = 'Auto-generated';
       _firstNameCtrl.clear();
       _lastNameCtrl.clear();
@@ -151,10 +160,9 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
       _mobileCtrl.clear();
       _addressCtrl.clear();
 
+      // 🔁 Dropdown + radios
       _gender = null;
       _referredBy = null;
-
-      _formKey.currentState?.reset();
     });
   }
 
@@ -366,41 +374,27 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
                       ),
                       const SizedBox(height: 16),
                       _label("Gender *"),
-                      DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: _gender,
-                        decoration: _dec("Select gender"),
-                        items: const [
-                          DropdownMenuItem(value: 'M', child: Text("Male")),
-                          DropdownMenuItem(value: 'F', child: Text("Female")),
-                          DropdownMenuItem(value: 'O', child: Text("Other")),
-                        ],
-                        onChanged: (value) => setState(() => _gender = value),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Gender is required";
-                          }
-                          return null;
-                        },
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 220,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                      Row(
+                        children: _genderOptions.map((opt) {
+                          return Expanded(
+                            child: RadioListTile<String>(
+                              value: opt['code']!,
+                              groupValue: _gender,
+                              onChanged: (v) => setState(() => _gender = v),
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                opt['label']!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF111827),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                        menuItemStyleData: const MenuItemStyleData(
-                          height: 44,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                        ),
+                              activeColor: const Color(0xFF111827),
+                            ),
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: 16),
                       _label("Age *"),

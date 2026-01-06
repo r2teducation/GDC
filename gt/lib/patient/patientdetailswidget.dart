@@ -96,24 +96,38 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
     }
   }
 
-  /// Build each row label: value
-  Widget _row(String label, String value) {
+  Widget _row(String label, String? value) {
+    String displayValue = value ?? '--';
+
+    // ✅ NORMALIZED LABEL CHECK
+    final normalizedLabel = label.toLowerCase().replaceAll(':', '').trim();
+
+    if (normalizedLabel == 'referred by') {
+      displayValue = _decodeReferredBy(value);
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 140,
             child: Text(
-              "$label",
+              '$label',
               style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: Color(0xFF374151)),
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
             ),
           ),
           Expanded(
-            child:
-                Text(value, style: const TextStyle(color: Color(0xFF111827))),
+            child: Text(
+              displayValue,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+              ),
+            ),
           ),
         ],
       ),
@@ -278,6 +292,21 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
         ),
       ),
     );
+  }
+
+  String _decodeReferredBy(String? code) {
+    switch (code) {
+      case 'D':
+        return 'Doctor';
+      case 'P':
+        return 'Patient';
+      case 'O':
+        return 'Online';
+      case 'X':
+        return 'Other';
+      default:
+        return '--';
+    }
   }
 
   Widget _buildView() {
