@@ -606,8 +606,8 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
               color: _readOnlyHeading,
             ),
           ),
-         // const SizedBox(height: 4),
-         // const Divider(color: _readOnlyDivider, thickness: 0.6), 
+          // const SizedBox(height: 4),
+          // const Divider(color: _readOnlyDivider, thickness: 0.6),
 
           /// ===== CONTENT =====
           for (final f in _previousFollowUps) ...[
@@ -927,6 +927,7 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                     if (_selectedPatientId != null) _paymentStatusBar(),
                   ],
                 ),
+                const SizedBox(height: 8),
                 _chiefComplaintSnapshotPanel(),
                 _previousFollowUpsPanel(),
                 _paymentsHistoryPanel(),
@@ -1186,19 +1187,20 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
           child: Container(
             height: 18,
             width: barWidth,
-            color: const Color(0xFFE5E7EB),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(
+                color: const Color(0xFF111827),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(999),
+            ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: percent,
               child: Container(
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFFB91C1C),
-                      Color(0xFFF59E0B),
-                      Color(0xFF16A34A),
-                    ],
-                  ),
+                  color: Color(0xFF111827), // solid black fill
                 ),
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 10),
@@ -1207,7 +1209,7 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black,
+                    color: Colors.white,
                   ),
                 ),
               ),
