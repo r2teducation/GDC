@@ -24,6 +24,11 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   static const Color _readOnlyHeading = Color(0xFF4B5563); // slate-600
   static const Color _readOnlyDivider = Color(0xFFE5E7EB); // light grey
 
+  static const Color _tableBorder = Color(0xFFD1D5DB); // grey-300
+  static const Color _tableBg = Color(0xFFF3F4F6); // grey-100
+  static const Color _tableHeaderBg = Color(0xFF111827); // black
+  static const Color _tableHeaderText = Colors.white;
+
   final ButtonStyle _blackActionButtonStyle = ElevatedButton.styleFrom(
     backgroundColor:
         const Color(0xFF111827), // pure black used in header/footer
@@ -93,6 +98,83 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     _medicineSearchCtrl.dispose(); // 👈 ADD
     _medicineScrollCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _infoTableCard({
+    required String title,
+    required String subtitle,
+    required List<Widget> rows,
+    EdgeInsets margin = const EdgeInsets.symmetric(vertical: 12),
+  }) {
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: _tableBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _tableBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // HEADER
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: _tableHeaderBg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: _tableHeaderText, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+            ),
+          ),
+
+          // ROWS
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  Widget _tableRowItem(
+    String label,
+    Widget content, {
+    bool isLast = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(color: _tableBorder),
+              ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: _readOnlyHeading,
+              ),
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickScans() async {
@@ -432,6 +514,62 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     }
   }
 
+  Widget _renderVitals(Map<String, dynamic> v) {
+    String safe(dynamic x) => (x == null || x.toString().isEmpty) ? '--' : '$x';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('BP : ${safe(v['bpSystolic'])} / ${safe(v['bpDiastolic'])}'),
+        Text('HR : ${safe(v['heartRate'])}'),
+        Text('BR : ${safe(v['breathingRate'])}'),
+        Text('Ht / Wt : ${safe(v['heightCm'])} / ${safe(v['weightKg'])}'),
+        Text('BMI : ${safe(v['bmi'])}'),
+        Text('FBS / RBS : ${safe(v['fbs'])} / ${safe(v['rbs'])}'),
+      ],
+    );
+  }
+
+  Widget _renderKeyList(Map<dynamic, dynamic> map) {
+    final keys = map.entries.where((e) => e.value == true).map((e) => e.key);
+
+    if (keys.isEmpty) {
+      return const Text('None', style: TextStyle(color: Colors.grey));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: keys.map((k) => Text('• $k')).toList(),
+    );
+  }
+
+  Widget _renderAllergies(Map<String, dynamic> a) {
+    String yn(bool? v) => v == true ? 'Yes' : 'No';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Drug : ${yn(a['drug'])}'),
+        Text('Food : ${yn(a['food'])}'),
+        Text('Latex : ${yn(a['latex'])}'),
+        if ((a['notes'] ?? '').toString().isNotEmpty)
+          Text('Notes : ${a['notes']}'),
+      ],
+    );
+  }
+
+  Widget _renderConsent(Map<String, dynamic> c) {
+    final bool given = c['given'] == true;
+
+    return Text(
+      given ? 'Consent Given' : 'Consent Not Given',
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        color: given ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
   Widget _patientHealthPanel() {
     if (_loadingHealthSnapshot) {
       return const Padding(
@@ -457,139 +595,42 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
         : 'Unknown time';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// ===== HEADER (NON-SCROLLABLE) =====
-          Text(
-            'Patient Health Snapshot at $apptLabel',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _readOnlyHeading,
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 8), // ✅ bottom = 8
+      child: _infoTableCard(
+        title: 'Patient Health Snapshot',
+        subtitle: apptLabel,
+        rows: [
+          _tableRowItem(
+            'Vitals',
+            _renderVitals(vitals),
+          ),
+          _tableRowItem(
+            'Health Conditions',
+            _renderKeyList(health),
+          ),
+          _tableRowItem(
+            'Allergies',
+            _renderAllergies(allergies),
+          ),
+          _tableRowItem(
+            'Dental History',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _renderKeyList(dental['conditions'] ?? {}),
+                if ((dental['notes'] ?? '').toString().isNotEmpty)
+                  Text('Notes : ${dental['notes']}'),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          const Divider(color: _readOnlyDivider, thickness: 0.6),
-          const SizedBox(height: 12),
-
-          /// ===== SCROLLABLE CONTENT =====
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _sectionText('Vitals', [
-                _kv('BP', '${vitals['bpSystolic']} / ${vitals['bpDiastolic']}'),
-                _kv('HR', '${vitals['heartRate']}'),
-                _kv('BR', '${vitals['breathingRate']}'),
-                _kv('Ht / Wt', '${vitals['heightCm']} / ${vitals['weightKg']}'),
-                _kv('BMI', '${vitals['bmi']}'),
-                _kv('FBS / RBS', '${vitals['fbs']} / ${vitals['rbs']}'),
-              ]),
-              _sectionText(
-                'Health Conditions',
-                _trueKeys(health),
-              ),
-              _sectionText('Allergies', [
-                _kv('Drug', allergies['drug'] == true ? 'Yes' : 'No'),
-                _kv('Food', allergies['food'] == true ? 'Yes' : 'No'),
-                _kv('Latex', allergies['latex'] == true ? 'Yes' : 'No'),
-                _kv('Notes', allergies['notes'] ?? '--'),
-              ]),
-              _sectionText(
-                'Dental History',
-                [
-                  ..._trueKeys(dental['conditions'] ?? {}),
-                  _kv('Notes', dental['notes'] ?? '--'),
-                ],
-              ),
-              _sectionText(
-                'Consent',
-                [
-                  Text(
-                    consent['given'] == true ? 'Consent Given' : 'Not Given',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color:
-                          consent['given'] == true ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          _tableRowItem(
+            'Consent',
+            _renderConsent(consent),
+            isLast: true,
           ),
         ],
       ),
     );
-  }
-
-  Widget _sectionText(String title, List<Widget> children) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: _readOnlyHeading,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 6),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _kv(String key, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              key,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: _readOnlyHeading,
-              ),
-            ),
-          ),
-          const Text(' : '),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: _readOnlyText,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _trueKeys(Map<dynamic, dynamic> map) {
-    final keys =
-        map.entries.where((e) => e.value == true).map((e) => e.key).toList();
-    if (keys.isEmpty) {
-      return const [
-        Text(
-          'None',
-          style: TextStyle(
-            color: _readOnlyText,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ];
-    }
-    return keys.map((e) => Text('• $e')).toList();
   }
 
   // ======================================================

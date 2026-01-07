@@ -310,6 +310,7 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
         'breathingRate': breathingRate,
         'heightCm': heightCtrl.text,
         'weightKg': weightCtrl.text,
+        'bmi': _bmi == null ? null : double.parse(_bmi!.toStringAsFixed(1)),
         'fbs': fbsCtrl.text,
         'rbs': rbsCtrl.text,
       },
@@ -512,8 +513,8 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
                           (v) => setState(() => heartRate = v)),
                       _slider('Breathing Rate', breathingRate, 10, 40,
                           (v) => setState(() => breathingRate = v)),
-                      _three(heightCtrl, 'Height (cm)', weightCtrl,
-                          'Weight (kg)', 'BMI'),
+                      _two(
+                          heightCtrl, 'Height (cm)', weightCtrl, 'Weight (kg)'),
                       const SizedBox(height: 12),
                       _two(fbsCtrl, 'FBS', rbsCtrl, 'RBS'),
                       _section('Section 2 — Health Conditions'),
@@ -593,6 +594,16 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
         ),
       ),
     );
+  }
+
+  double? get _bmi {
+    final h = double.tryParse(heightCtrl.text);
+    final w = double.tryParse(weightCtrl.text);
+
+    if (h == null || w == null || h == 0) return null;
+
+    final meters = h / 100;
+    return w / (meters * meters);
   }
 
   Widget _buildPatientOptionRow(_PatientOption p) {

@@ -68,6 +68,11 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
     super.dispose();
   }
 
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
   void _listenCalendarData() {
     _appointmentsSub =
         _db.collection('appointments').snapshots().listen((snap) {
@@ -189,6 +194,8 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                   final newCount = events.where((e) => !e.isFollowUp).length;
                   final followCount = events.where((e) => e.isFollowUp).length;
 
+                  final isToday = _isToday(d);
+
                   return GestureDetector(
                     onTap: () {
                       _showDayDetailsDialog(context, d);
@@ -196,9 +203,14 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                     child: Container(
                       margin: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: isToday
+                            ? Colors.grey.shade200 // 🔥 light grey fill
+                            : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(
+                          color: isToday ? Colors.grey.shade400 : Colors.grey.shade300,
+                          width: isToday ? 1.5 : 1,
+                        ),
                       ),
                       child: Column(
                         children: [
