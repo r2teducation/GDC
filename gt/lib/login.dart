@@ -9,29 +9,48 @@ class NewLoginPage extends StatefulWidget {
   State<NewLoginPage> createState() => _NewLoginPageState();
 }
 
+enum UserRole {
+  doctor,
+  receptionist,
+}
+
 class _NewLoginPageState extends State<NewLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'a@gmail.com');
-  final _passwordController = TextEditingController(text: 'a');
 
-void _login() {
-  if (_formKey.currentState!.validate()) {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+  // ✅ Prefilled testing credentials
+  final _emailController =
+      TextEditingController(text: 'doctor@gmail.com');
+  final _passwordController =
+      TextEditingController(text: 'doctor');
 
-    if (email == 'a@gmail.com' && password == 'a') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeLayoutWidget()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid email or password'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+  void _login() {
+  if (!_formKey.currentState!.validate()) return;
+
+  final email = _emailController.text.trim();
+  final password = _passwordController.text.trim();
+
+  UserRole? role;
+
+  if (email == 'doctor@gmail.com' && password == 'doctor') {
+    role = UserRole.doctor;
+  } else if (email == 'reception@gmail.com' && password == 'reception') {
+    role = UserRole.receptionist;
+  }
+
+  if (role != null) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeLayoutWidget(userRole: role!),
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Invalid email or password'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 }
 

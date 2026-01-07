@@ -63,8 +63,7 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
           children: [
             _buildHeader(size),
             _buildBody(),
-            _softDivider(),
-            _buildFooter(size),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -233,34 +232,7 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
     );
   }
 
-  // ======================================================
-  // FOOTER
-  // ======================================================
-  Widget _buildFooter(Size size) {
-    return SizedBox(
-      height: size.height * _headerFooterRatio,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 24, right: 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            _pillButton(
-              label: 'Close',
-              background: const Color(0xFFE5E7EB),
-              foreground: const Color(0xFF111827),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
-                  (route) => false, // 🔥 clears back stack
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  
 
   // ======================================================
   // TABLE HELPERS
@@ -292,44 +264,6 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
           ],
         ),
       );
-
-  // ======================================================
-  // UI HELPERS
-  // ======================================================
-  static Divider _softDivider() => const Divider(
-        height: 1,
-        thickness: 0.6,
-        color: Color(0xFFEDEFF2),
-      );
-
-  static Widget _pillButton({
-    required String label,
-    required Color background,
-    required Color foreground,
-    required VoidCallback onPressed,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onPressed,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 26),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
 
   // ======================================================
   // ADD / EDIT DIALOG (UNCHANGED)

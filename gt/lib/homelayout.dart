@@ -27,7 +27,12 @@ import 'package:gt/pharmacy/medicinestockwidget.dart';
 /// ---------------------------------------------------------------------------
 
 class HomeLayoutWidget extends StatelessWidget {
-  const HomeLayoutWidget({super.key});
+  final UserRole userRole;
+
+  const HomeLayoutWidget({
+    super.key,
+    required this.userRole,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +43,7 @@ class HomeLayoutWidget extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF6F7F9),
       ),
-      home: const HomeLayoutHome(),
+      home: HomeLayoutHome(userRole: userRole),
     );
   }
 }
@@ -48,7 +53,12 @@ class HomeLayoutWidget extends StatelessWidget {
 /// ---------------------------------------------------------------------------
 
 class HomeLayoutHome extends StatefulWidget {
-  const HomeLayoutHome({super.key});
+  final UserRole userRole;
+
+  const HomeLayoutHome({
+    super.key,
+    required this.userRole,
+  });
 
   @override
   State<HomeLayoutHome> createState() => _HomeLayoutHomeState();
@@ -61,29 +71,38 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
 
   String _route = 'dashboard';
 
+  late final Map<String, Widget> _routes;
+
   @override
   void initState() {
     super.initState();
+
+    _routes = {
+      'dashboard': const DashboardWidget(),
+      'patient_register': const PatientRegisterWidget(),
+      'patient_details': const PatientDetailsWidget(),
+      'patient_history': const PatientSummaryWidget(),
+      'appointment_calendar': const PatientCalendarWidget(),
+      if (widget.userRole == UserRole.doctor) ...{
+        'treatment_main': const TreatmentWidget(),
+        'treatment_followup': const FollowUpWidget(),
+        'payment_history': const PaymentHistoryWidget(),
+      },
+      'payment_main': const PaymentWidget(),
+      'pharmacy_main': const PharmacyWidget(),
+      'pharmacy_stock': const MedicineStockWidget(),
+    };
+
     _navState.bind(() {
       if (mounted) setState(() {});
     });
   }
 
-  final Map<String, Widget> _routes = {
-    'dashboard': const DashboardWidget(),
-    'patient_register': const PatientRegisterWidget(),
-    'patient_details': const PatientDetailsWidget(),
-    'patient_history': const PatientSummaryWidget(),
-    'appointment_calendar': const PatientCalendarWidget(),
-    'treatment_main': const TreatmentWidget(),
-    'treatment_followup': const FollowUpWidget(),
-    'payment_main': const PaymentWidget(),
-    'payment_history': const PaymentHistoryWidget(),
-    'pharmacy_main': const PharmacyWidget(),
-    'pharmacy_stock': const MedicineStockWidget(),
-  };
-
   void _navigate(String route) {
+    if (!_routes.containsKey(route)) {
+      setState(() => _route = 'dashboard');
+      return;
+    }
     setState(() => _route = route);
   }
 
@@ -107,6 +126,7 @@ class _HomeLayoutHomeState extends State<HomeLayoutHome> {
                   onNavigate: _navigate,
                   onLogout: () => _logout(context),
                   overlay: _navState,
+                  userRole: widget.userRole,
                 ),
                 Expanded(
                   child: Padding(
@@ -174,6 +194,7 @@ class _NavOverlayState {
 /// ---------------------------------------------------------------------------
 
 class _TopStickerNavBar extends StatefulWidget {
+  final UserRole userRole;
   final String currentRoute;
   final ValueChanged<String> onNavigate;
   final VoidCallback onLogout;
@@ -181,6 +202,7 @@ class _TopStickerNavBar extends StatefulWidget {
 
   const _TopStickerNavBar({
     super.key,
+    required this.userRole,
     required this.currentRoute,
     required this.onNavigate,
     required this.onLogout,
@@ -193,9 +215,8 @@ class _TopStickerNavBar extends StatefulWidget {
 
 class _TopStickerNavBarState extends State<_TopStickerNavBar> {
   int _activeTab = -1;
-  final List<GlobalKey> _tabKeys = List.generate(5, (_) => GlobalKey());
 
-  final List<_MainTab> _tabs = [
+  late final List<_MainTab> _tabs = [
     const _MainTab('Patient', [
       _SubTab('Register', 'patient_register'),
       _SubTab('Details', 'patient_details'),
@@ -204,19 +225,24 @@ class _TopStickerNavBarState extends State<_TopStickerNavBar> {
     const _MainTab('Appointment', [
       _SubTab('Calendar', 'appointment_calendar'),
     ]),
-    const _MainTab('Treatment', [
-      _SubTab('Treatment', 'treatment_main'),
-      _SubTab('Follow Up', 'treatment_followup'),
-    ]),
-    const _MainTab('Payment', [
-      _SubTab('Payment', 'payment_main'),
-      _SubTab('History', 'payment_history'),
+    if (widget.userRole == UserRole.doctor)
+      const _MainTab('Treatment', [
+        _SubTab('Treatment', 'treatment_main'),
+        _SubTab('Follow Up', 'treatment_followup'),
+      ]),
+    _MainTab('Payment', [
+      const _SubTab('Payment', 'payment_main'),
+      if (widget.userRole == UserRole.doctor)
+        const _SubTab('History', 'payment_history'),
     ]),
     const _MainTab('Pharmacy', [
       _SubTab('Pharmacy', 'pharmacy_main'),
       _SubTab('Stock', 'pharmacy_stock'),
     ]),
   ];
+
+  late final List<GlobalKey> _tabKeys =
+      List.generate(_tabs.length, (_) => GlobalKey());
 
   void clearActiveTab() {
     setState(() => _activeTab = -1);

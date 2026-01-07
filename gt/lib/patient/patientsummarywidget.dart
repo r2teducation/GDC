@@ -785,8 +785,7 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
           children: [
             _buildHeader(size),
             _buildScrollableBody(),
-            _softDivider(),
-            _buildFooter(size),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -1230,76 +1229,6 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
     }).toList();
 
     return items.join(', ');
-  }
-
-  // ======================================================
-  // FOOTER
-  // ======================================================
-  Widget _buildFooter(Size size) {
-    return SizedBox(
-      height: size.height * _headerFooterRatio,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 24, right: 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            _pillButton(
-              label: 'Close',
-              background: const Color(0xFF111827),
-              foreground: Colors.white,
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
-                  (route) => false, // 🔥 clears back stack
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ======================================================
-  // HELPERS
-  // ======================================================
-  static Divider _softDivider() => const Divider(
-        height: 1,
-        thickness: 0.6,
-        color: Color(0xFFEDEFF2),
-      );
-
-  static Widget _pillButton({
-    required String label,
-    required Color background,
-    required Color foreground,
-    required VoidCallback onPressed,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      splashColor: Colors.black12,
-      highlightColor: Colors.transparent,
-      onTap: onPressed,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 26),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ),
-    );
   }
 }
 

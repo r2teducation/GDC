@@ -792,6 +792,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                   items: const [
                                     'Root Canal',
                                     'Implants',
+                                    'Impaction', // 👈 NEW
                                     'Crowns/Bridges',
                                     'Braces',
                                     'Dentures',
@@ -843,6 +844,199 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                         EdgeInsets.symmetric(horizontal: 16),
                                   ),
                                 ),
+                                if (dialogState.problemType == 'Impaction')
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Type of Impaction',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          _impactionRadio(
+                                            label: 'Mesio-angular',
+                                            value: 'Mesio-angular',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Disto-angular',
+                                            value: 'Disto-angular',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Vertical',
+                                            value: 'Vertical',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Horizontal',
+                                            value: 'Horizontal',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                if (dialogState.problemType == 'Implants')
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 12),
+
+                                      const Text(
+                                        'Implant Type',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                      ),
+
+                                      const SizedBox(height: 6),
+
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: RadioListTile<String>(
+                                              value: 'Basal',
+                                              groupValue:
+                                                  dialogState.implantType,
+                                              onChanged: (v) =>
+                                                  setStateDialog(() {
+                                                dialogState.implantType = v;
+                                              }),
+                                              title: const Text('Basal',
+                                                  style:
+                                                      TextStyle(fontSize: 13)),
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: RadioListTile<String>(
+                                              value: 'Conventional',
+                                              groupValue:
+                                                  dialogState.implantType,
+                                              onChanged: (v) =>
+                                                  setStateDialog(() {
+                                                dialogState.implantType = v;
+                                              }),
+                                              title: const Text('Conventional',
+                                                  style:
+                                                      TextStyle(fontSize: 13)),
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 12),
+
+                                      // ───────── Implant Grid (2 rows × 3 columns) ─────────
+                                      Column(
+                                        children: [
+                                          // Row 1
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantWidthCtrl,
+                                                  decoration: _dec(
+                                                      'Implant Width (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantLengthCtrl,
+                                                  decoration: _dec(
+                                                      'Implant Length (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantCompanyCtrl,
+                                                  decoration:
+                                                      _dec('Implant Company'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 12),
+
+                                          // Row 2
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label:
+                                                      'Healing Cap Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date: dialogState
+                                                      .healingCapDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .healingCapDate = d),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label: 'Abutment Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date:
+                                                      dialogState.abutmentDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .abutmentDate = d),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label: 'Crown Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date: dialogState.crownDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .crownDate = d),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 if (dialogState.problemType == 'Root Canal' &&
                                     dialogState.selectedTeeth.isNotEmpty)
                                   Column(
@@ -925,9 +1119,22 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
 
                                     if (dialogState.problemType ==
                                         'Root Canal') {
-                                      final prefix =
-                                          dialogState.buildRootCanalPrefix();
-                                      finalNotes = '$prefix$finalNotes'.trim();
+                                      finalNotes =
+                                          '${dialogState.buildRootCanalPrefix()}$finalNotes'
+                                              .trim();
+                                    }
+
+                                    if (dialogState.problemType == 'Implants') {
+                                      finalNotes =
+                                          '${dialogState.buildImplantPrefix()}$finalNotes'
+                                              .trim();
+                                    }
+
+                                    if (dialogState.problemType ==
+                                        'Impaction') {
+                                      finalNotes =
+                                          '${dialogState.buildImpactionPrefix()}$finalNotes'
+                                              .trim();
                                     }
 
                                     _problems.add(_ProblemRow(
@@ -961,6 +1168,63 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
           ),
         );
       },
+    );
+  }
+
+  Widget _impactionRadio({
+    required String label,
+    required String value,
+    required String? group,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Expanded(
+      child: RadioListTile<String>(
+        value: value,
+        groupValue: group,
+        onChanged: (v) => onChanged(v!),
+        title: Text(label, style: const TextStyle(fontSize: 13)),
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  Widget _implantDatePicker({
+    required String label,
+    required DateTime? date,
+    required ValueChanged<DateTime?> onPick,
+    required IconData icon,
+  }) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF6B7280),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      onPressed: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) onPick(picked);
+      },
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              date == null
+                  ? label
+                  : '${DateFormat('dd-MMM-yyyy').format(date)}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1483,19 +1747,6 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             _pillButton(
-              label: 'Close',
-              background: const Color(0xFFE5E7EB),
-              foreground: const Color(0xFF111827),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
-                  (route) => false, // 🔥 clears back stack
-                );
-              },
-            ),
-            const SizedBox(width: 12),
-            _pillButton(
               label: 'Reset',
               background: const Color(0xFFE5E7EB),
               foreground: const Color(0xFF111827),
@@ -1874,6 +2125,26 @@ class _PatientOption {
 }
 
 class AddProblemDialogState {
+  // ---------- IMPLANT STATE ----------
+  String? implantType; // Basal / Conventional
+
+  final TextEditingController implantWidthCtrl = TextEditingController();
+  final TextEditingController implantLengthCtrl = TextEditingController();
+  final TextEditingController implantCompanyCtrl = TextEditingController();
+
+  String buildImpactionPrefix() {
+    if (impactionType == null) return '';
+
+    return '[ Impaction – $impactionType ] ';
+  }
+
+  // ---------- IMPACTION STATE ----------
+  String? impactionType;
+
+  DateTime? healingCapDate;
+  DateTime? abutmentDate;
+  DateTime? crownDate;
+
   final Set<int> selectedTeeth = {};
   String? problemType;
 
@@ -1932,7 +2203,64 @@ class AddProblemDialogState {
 
   void setProblemType(String? type) {
     problemType = type;
+
+    if (type != 'Implants') {
+      implantType = null;
+      implantWidthCtrl.clear();
+      implantLengthCtrl.clear();
+      implantCompanyCtrl.clear();
+      healingCapDate = null;
+      abutmentDate = null;
+      crownDate = null;
+    }
+
+    if (type != 'Impaction') {
+      impactionType = null; // 👈 IMPORTANT
+    }
+
     reconcile();
+  }
+
+  String buildImplantPrefix() {
+    final List<String> parts = [];
+
+    if (implantType != null) {
+      parts.add('Type: $implantType');
+    }
+
+    if (implantWidthCtrl.text.isNotEmpty) {
+      parts.add('Width: ${implantWidthCtrl.text}mm');
+    }
+
+    if (implantLengthCtrl.text.isNotEmpty) {
+      parts.add('Length: ${implantLengthCtrl.text}mm');
+    }
+
+    if (implantCompanyCtrl.text.isNotEmpty) {
+      parts.add('Company: ${implantCompanyCtrl.text}');
+    }
+
+    if (healingCapDate != null) {
+      parts.add(
+        'Healing cap: ${DateFormat('dd-MMM-yyyy').format(healingCapDate!)}',
+      );
+    }
+
+    if (abutmentDate != null) {
+      parts.add(
+        'Abutment: ${DateFormat('dd-MMM-yyyy').format(abutmentDate!)}',
+      );
+    }
+
+    if (crownDate != null) {
+      parts.add(
+        'Crown: ${DateFormat('dd-MMM-yyyy').format(crownDate!)}',
+      );
+    }
+
+    if (parts.isEmpty) return '';
+
+    return '[ Implant ${parts.join(', ')} ] ';
   }
 
   String buildRootCanalPrefix() {
@@ -1963,6 +2291,9 @@ class AddProblemDialogState {
   }
 
   void dispose() {
+    implantWidthCtrl.dispose();
+    implantLengthCtrl.dispose();
+    implantCompanyCtrl.dispose();
     _clearAll();
     selectedTeeth.clear();
   }

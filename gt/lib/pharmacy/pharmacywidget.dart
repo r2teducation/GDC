@@ -311,19 +311,6 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             _pillButton(
-              label: 'Close',
-              background: const Color(0xFFE5E7EB),
-              foreground: const Color(0xFF111827),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HomeLayoutWidget()),
-                  (route) => false, // 🔥 clears back stack
-                );
-              },
-            ),
-            const SizedBox(width: 12),
-            _pillButton(
               label: 'Pay',
               background: const Color(0xFF111827),
               foreground: Colors.white,
