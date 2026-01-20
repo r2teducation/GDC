@@ -24,6 +24,7 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
     {'code': 'D', 'label': 'Doctor'},
     {'code': 'P', 'label': 'Patient'},
     {'code': 'O', 'label': 'Online'},
+    {'code': 'S', 'label': 'Self'},
     {'code': 'X', 'label': 'Other'},
   ];
 
@@ -34,7 +35,7 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   ];
 
   // referred by (moved from Visits)
-  String? _referredBy; // D / P / O / X
+  String? _referredBy; // D / P / O / S / X
 
   final TextEditingController _searchCtrl =
       TextEditingController(); // unused but kept if needed
@@ -131,12 +132,11 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
   Future<String?> _findDuplicateComposite(
     String firstName,
-    String lastName,
     String mobileFormatted,
   ) async {
     final mobileRaw = mobileFormatted.replaceAll(' ', '').trim();
-    final key =
-        '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+
+    final key = '${firstName.toLowerCase()}|$mobileRaw';
 
     final snap = await _db
         .collection('patients')
@@ -202,17 +202,15 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
         return;
       }
 
-      final compositeKey =
-          '${firstName.toLowerCase()}|${lastName.toLowerCase()}|$mobileRaw';
+      final compositeKey = '${firstName.toLowerCase()}|$mobileRaw';
 
-      final dupId =
-          await _findDuplicateComposite(firstName, lastName, mobileFormatted);
+      final dupId = await _findDuplicateComposite(firstName, mobileFormatted);
 
       if (dupId != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  'Patient already exists with ID $dupId (same name & mobile)')),
+                  'Patient already exists with ID $dupId (same first name & mobile number)')),
         );
         setState(() => _loading = false);
         return;
@@ -223,7 +221,7 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
         throw Exception("Duplicate Patient ID generated. Try again.");
       }
 
-      final fullName = "$firstName $lastName";
+      final fullName = lastName.isEmpty ? firstName : "$firstName $lastName";
 
       final data = {
         'patientId': patientId,
@@ -359,18 +357,17 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
                         decoration: _dec("Enter first name"),
                       ),
                       const SizedBox(height: 16),
-                      _label("Last Name *"),
+                      _label("Last Name"),
                       TextFormField(
                         controller: _lastNameCtrl,
                         textCapitalization: TextCapitalization.words,
-                        validator: (v) => _nameVal(v, name: "Last Name"),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[A-Za-z ]')),
                           SingleSpaceNameFormatter(),
                           LengthLimitingTextInputFormatter(50),
                         ],
-                        decoration: _dec("Enter last name"),
+                        decoration: _dec("Enter last name (optional)"),
                       ),
                       const SizedBox(height: 16),
                       _label("Gender *"),

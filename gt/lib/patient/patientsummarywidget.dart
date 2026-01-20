@@ -23,6 +23,8 @@ class PatientSummaryWidget extends StatefulWidget {
 }
 
 class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
+  String? _chiefComplaintTreatmentType;
+
   double _treatmentTotalCost = 0;
 
 // ---------------- Payments ----------------
@@ -294,6 +296,7 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
       _chiefComplaintSnapshot = [];
       _chiefComplaintDoctorNotes = null;
       _chiefComplaintApptLabel = null;
+      _chiefComplaintTreatmentType = null;
     });
 
     if (v == null) return;
@@ -331,6 +334,9 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
           _chiefComplaintSnapshot = rawProblems is List
               ? List<Map<String, dynamic>>.from(rawProblems)
               : [];
+
+          _chiefComplaintTreatmentType =
+              (data['treatmentType'] ?? '').toString().trim();
 
           _chiefComplaintDoctorNotes =
               (data['doctorNotes'] ?? '').toString().trim();
@@ -710,6 +716,16 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                           );
                         }).toList(),
                       ),
+              ),
+              _tableRowItem(
+                'Type',
+                Text(
+                  (_chiefComplaintTreatmentType != null &&
+                          _chiefComplaintTreatmentType!.isNotEmpty)
+                      ? _chiefComplaintTreatmentType!
+                      : '--',
+                  style: const TextStyle(color: _readOnlyText),
+                ),
               ),
               _tableRowItem(
                 'Notes',

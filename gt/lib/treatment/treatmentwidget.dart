@@ -29,6 +29,9 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   static const Color _tableHeaderBg = Color(0xFF111827); // black
   static const Color _tableHeaderText = Colors.white;
 
+  // ---------------- Treatment Type ----------------
+  String _treatmentType = 'Advised'; // ✅ default
+
   final ButtonStyle _blackActionButtonStyle = ElevatedButton.styleFrom(
     backgroundColor:
         const Color(0xFF111827), // pure black used in header/footer
@@ -98,6 +101,49 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     _medicineSearchCtrl.dispose(); // 👈 ADD
     _medicineScrollCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _buildTreatmentTypeSelector() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(
+          width: 140,
+          child: Text(
+            'Treatment Type',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Row(
+          children: [
+            Radio<String>(
+              value: 'Advised',
+              groupValue: _treatmentType,
+              onChanged: (v) {
+                setState(() {
+                  _treatmentType = v!;
+                });
+              },
+            ),
+            const Text('Advised'),
+            const SizedBox(width: 20),
+            Radio<String>(
+              value: 'Desired',
+              groupValue: _treatmentType,
+              onChanged: (v) {
+                setState(() {
+                  _treatmentType = v!;
+                });
+              },
+            ),
+            const Text('Desired'),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _infoTableCard({
@@ -792,10 +838,15 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                                   items: const [
                                     'Root Canal',
                                     'Implants',
-                                    'Impaction', // 👈 NEW
+                                    'Impaction',
                                     'Crowns/Bridges',
                                     'Braces',
                                     'Dentures',
+                                    'Extraction',
+                                    'Filling',
+                                    'Scaling',
+                                    'Cervical Abrasion',
+                                    'Generalized Gingivitis'
                                   ]
                                       .map(
                                         (e) => DropdownMenuItem<String>(
@@ -1300,6 +1351,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       final treatmentRef = await _db.collection('treatments').add({
         'patientId': _selectedPatientId,
         'treatmentDate': Timestamp.fromDate(_selectedDate),
+        'treatmentType': _treatmentType,
         'treatmentAmount': double.parse(_treatmentAmountCtrl.text),
         'doctorNotes': _doctorNotesCtrl.text.trim(),
         'problems': _problems
@@ -1348,6 +1400,7 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
       _patientHealthSnapshot = null;
       _selectedDate = DateTime.now();
       _doctorNotesCtrl.clear();
+      _treatmentType = 'Advised';
       _treatmentAmountCtrl.clear();
 
       _medicineSearchCtrl.clear();
@@ -1615,6 +1668,9 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: const Text('Add Problem'),
               ),
+              const SizedBox(height: 12),
+              // 🦷 Treatment Type
+              _buildTreatmentTypeSelector(),
 
               // 💰 Treatment Amount
               _sectionHeader('Treatment Amount'),
@@ -1642,7 +1698,10 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
 
               // 💊 Medicine Prescription
               _sectionHeader('Medicine Prescription'),
+
               _buildMedicinePrescriptionTable(),
+
+              const SizedBox(height: 8),
 
               ElevatedButton.icon(
                 style: _blackActionButtonStyle,

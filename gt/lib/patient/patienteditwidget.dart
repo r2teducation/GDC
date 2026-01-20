@@ -18,6 +18,14 @@ class PatientEditWidget extends StatefulWidget {
 class _PatientEditWidgetState extends State<PatientEditWidget> {
   final _formKey = GlobalKey<FormState>();
 
+  final List<Map<String, String>> _referredByOptions = const [
+    {'code': 'D', 'label': 'Doctor'},
+    {'code': 'P', 'label': 'Patient'},
+    {'code': 'O', 'label': 'Online'},
+    {'code': 'S', 'label': 'Self'},
+    {'code': 'X', 'label': 'Other'},
+  ];
+
   final _patientIdCtrl = TextEditingController(text: 'Auto-generated');
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
@@ -26,7 +34,7 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
   final _addressCtrl = TextEditingController();
 
   // referred by (moved from Visits)
-  String? _referredBy; // D / P / O / X
+  String? _referredBy; // D / P / O / S / X
 
   String? _gender; // M / F / O
 
@@ -38,6 +46,26 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
   void initState() {
     super.initState();
     _loadPatient();
+  }
+
+  Future<String?> _findDuplicateComposite(
+    String firstName,
+    String mobile,
+  ) async {
+    final key = '${firstName.toLowerCase()}|$mobile';
+
+    final snap = await _db
+        .collection('patients')
+        .where('compositeKey', isEqualTo: key)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+
+    // ignore current patient
+    if (snap.docs.first.id == widget.patientId) return null;
+
+    return snap.docs.first.id;
   }
 
   Future<void> _loadPatient() async {
@@ -231,18 +259,17 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
                         decoration: _dec("Enter first name"),
                       ),
                       const SizedBox(height: 16),
-                      _label("Last Name *"),
+                      _label("Last Name"),
                       TextFormField(
                         controller: _lastNameCtrl,
                         textCapitalization: TextCapitalization.words,
-                        validator: (v) => _nameVal(v, name: "Last Name"),
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                               RegExp(r'[A-Za-z ]')),
                           SingleSpaceNameFormatter(),
                           LengthLimitingTextInputFormatter(50),
                         ],
-                        decoration: _dec("Enter last name"),
+                        decoration: _dec("Enter last name (optional)"),
                       ),
                       const SizedBox(height: 16),
                       _label("Gender *"),
@@ -318,42 +345,27 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
                       ),
                       const SizedBox(height: 16),
                       _label("Referred By *"),
-                      DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: _referredBy,
-                        decoration: _dec("Select source"),
-                        items: const [
-                          DropdownMenuItem(value: 'D', child: Text("Doctor")),
-                          DropdownMenuItem(value: 'P', child: Text("Patient")),
-                          DropdownMenuItem(value: 'O', child: Text("Online")),
-                          DropdownMenuItem(value: 'X', child: Text("Other")),
-                        ],
-                        onChanged: (v) => setState(() => _referredBy = v),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return "Referred By is required";
-                          }
-                          return null;
-                        },
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 220,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                      Row(
+                        children: _referredByOptions.map((opt) {
+                          return Expanded(
+                            child: RadioListTile<String>(
+                              value: opt['code']!,
+                              groupValue: _referredBy,
+                              onChanged: (v) => setState(() => _referredBy = v),
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                opt['label']!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF111827),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                        menuItemStyleData: const MenuItemStyleData(
-                          height: 44,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                        ),
+                              activeColor: const Color(0xFF111827),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
@@ -417,16 +429,36 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
     setState(() => _loading = true);
 
     try {
+      final firstName = _firstNameCtrl.text.trim();
+      final lastName = _lastNameCtrl.text.trim();
+      final mobileRaw = _mobileCtrl.text.replaceAll(' ', '').trim();
+
+      final compositeKey = '${firstName.toLowerCase()}|$mobileRaw';
+
+      final dupId = await _findDuplicateComposite(firstName, mobileRaw);
+
+      if (dupId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Another patient already exists with same first name and mobile (ID: $dupId)',
+            ),
+          ),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
       await _db.collection('patients').doc(widget.patientId).update({
-        'firstName': _firstNameCtrl.text.trim(),
-        'lastName': _lastNameCtrl.text.trim(),
-        'fullName':
-            '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}',
+        'firstName': firstName,
+        'lastName': lastName,
+        'fullName': lastName.isEmpty ? firstName : '$firstName $lastName',
         'gender': _fromCode(_gender!),
         'age': int.parse(_ageCtrl.text.trim()),
-        'mobile': _mobileCtrl.text.replaceAll(' ', ''),
+        'mobile': mobileRaw,
         'address': _addressCtrl.text.trim(),
         'referredBy': _referredBy,
+        'compositeKey': compositeKey,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

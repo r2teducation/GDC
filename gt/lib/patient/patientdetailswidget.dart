@@ -36,6 +36,9 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
   }
 
   Future<void> _loadPatientsForDropdown() async {
+    setState(() {
+      _patientOptions = [];
+    });
     try {
       final snap = await _db.collection('patients').orderBy('patientId').get();
       final List<_PatientOption> opts = [];
@@ -43,11 +46,11 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
         final data = doc.data();
         if (data['isActive'] == false) continue;
         final id = (data['patientId'] ?? doc.id).toString();
-        final fullName = (data['fullName'] ??
-                '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}')
-            .toString()
-            .trim();
-        final label = fullName.isNotEmpty ? '$id  $fullName' : id.toString();
+        final firstName = data['firstName'] ?? '';
+        final lastName = data['lastName'] ?? '';
+
+        final fullName = lastName.isEmpty ? firstName : '$firstName $lastName';
+        final label = '$id  $fullName';
         opts.add(_PatientOption(id: id, label: label));
       }
       setState(() {
@@ -259,6 +262,7 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
                         );
 
                         if (updated == true) {
+                          await _loadPatientsForDropdown(); // 🔥 refresh names
                           await _loadPatientDetails(_selectedPatientId!);
                         }
                       },
@@ -302,6 +306,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
         return 'Patient';
       case 'O':
         return 'Online';
+      case 'S':
+        return 'Self';
       case 'X':
         return 'Other';
       default:
