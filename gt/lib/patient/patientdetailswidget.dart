@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gt/patient/patienteditwidget.dart';
@@ -12,7 +12,6 @@ class PatientDetailsWidget extends StatefulWidget {
 }
 
 class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
-  final TextEditingController _searchCtrl = TextEditingController();
   final _db = FirebaseFirestore.instance;
 
   bool _loadingPatients = true;
@@ -31,7 +30,6 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -332,74 +330,49 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
               padding: EdgeInsets.symmetric(vertical: 8),
               child: LinearProgressIndicator())
         else
-          DropdownButtonFormField2<String>(
-            isExpanded: true,
-            value: _selectedPatientId,
-            decoration: _dec("Select patient"),
-            items: _patientOptions
-                .map((p) => DropdownMenuItem<String>(
-                    value: p.id, child: _buildPatientOptionRow(p)))
-                .toList(),
-            onChanged: (v) {
-              _onPatientSelected(v);
-            },
-            dropdownStyleData: DropdownStyleData(
-              maxHeight: 280,
-              decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16)),
-            ),
-            menuItemStyleData: const MenuItemStyleData(
-                height: 44,
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-            dropdownSearchData: DropdownSearchData(
-              searchController: _searchCtrl,
-              searchInnerWidgetHeight: 52,
-              searchInnerWidget: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Search by ID / Name',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+          DropdownSearch<_PatientOption>(
+            items: _patientOptions,
+            selectedItem: _selectedPatientId == null
+                ? null
+                : _patientOptions.firstWhere(
+                    (p) => p.id == _selectedPatientId,
+                  ),
+            itemAsString: (item) => item.label,
+            popupProps: PopupProps.menu(
+              showSearchBox: true,
+              constraints: const BoxConstraints(maxHeight: 280),
+              containerBuilder: (context, popupWidget) {
+                return Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.zero,
+                  elevation: 6,
+                  child: popupWidget,
+                );
+              },
+              searchFieldProps: TextFieldProps(
+                decoration: InputDecoration(
+                  hintText: 'Search by ID / Name',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
-              searchMatchFn: (item, searchValue) {
-                final value = item.value ?? '';
-                final opt = _patientOptions.firstWhere((p) => p.id == value,
-                    orElse: () => _PatientOption(id: value, label: value));
-                return opt.label
-                    .toLowerCase()
-                    .contains(searchValue.toLowerCase());
-              },
             ),
-            onMenuStateChange: (isOpen) {
-              if (!isOpen) _searchCtrl.clear();
+            dropdownDecoratorProps: DropDownDecoratorProps(
+              dropdownSearchDecoration: _dec("Select patient"),
+            ),
+            onChanged: (val) {
+              if (val == null) return;
+              _onPatientSelected(val.id);
             },
           ),
         const SizedBox(height: 24),
         _buildDetailsCard(),
-      ],
-    );
-  }
-
-  Widget _buildPatientOptionRow(_PatientOption p) {
-    final parts = p.label.split(RegExp(r'\s{2,}'));
-    final idPart = parts.isNotEmpty ? parts.first : p.id;
-    final namePart = parts.length > 1 ? parts.sublist(1).join('  ') : '';
-    return Row(
-      children: [
-        Text(idPart, style: const TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(width: 12),
-        Expanded(child: Text(namePart, overflow: TextOverflow.ellipsis)),
       ],
     );
   }

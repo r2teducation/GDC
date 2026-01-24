@@ -14,6 +14,8 @@ class PaymentWidget extends StatefulWidget {
 class _PaymentWidgetState extends State<PaymentWidget> {
   final _db = FirebaseFirestore.instance;
 
+  final _formKey = GlobalKey<FormState>();
+
   final TextEditingController _medicineSearchCtrl = TextEditingController();
   String _medicineSearch = '';
   final ScrollController _medicineScrollCtrl = ScrollController();
@@ -32,9 +34,11 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   String? _selectedPatientId;
 
   // ---------------- Payment fields ----------------
-  String _paymentFor = 'Treatment'; // Treatment | Medicine
+  String _paymentFor = 'Treatment';
+// Treatment | Medicine | Treatment & Medicine
   String _paymentMode = 'Cash'; // Cash | UPI
-  final TextEditingController _amountCtrl = TextEditingController();
+  final TextEditingController _treatmentAmountCtrl = TextEditingController();
+  final TextEditingController _medicineAmountCtrl = TextEditingController();
   final TextEditingController _detailsCtrl = TextEditingController();
 
   // ---------------- Medicine Stock (MANUAL) ----------------
@@ -75,7 +79,8 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _amountCtrl.dispose();
+    _treatmentAmountCtrl.dispose();
+    _medicineAmountCtrl.dispose();
     _detailsCtrl.dispose();
     _medicineSearchCtrl.dispose();
     _medicineScrollCtrl.dispose();
@@ -108,10 +113,7 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     }
   }
 
-  bool get _canPay {
-    final amt = double.tryParse(_amountCtrl.text) ?? 0;
-    return _selectedPatientId != null && amt > 0 && !_saving;
-  }
+  bool get _canPay => !_saving;
 
   // ======================================================
   // Save payment
@@ -122,24 +124,50 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _saving = true);
 
     try {
-      await _db.collection('payments').add({
-        'patientId': _selectedPatientId,
-        'paymentFor': _paymentFor,
-        'paymentMode': _paymentMode,
-        'amount': double.parse(_amountCtrl.text),
-        'details': _detailsCtrl.text.trim(),
-        'paidAt': FieldValue.serverTimestamp(),
-      });
+      final batch = _db.batch();
+      final payments = _db.collection('payments');
+
+      final paidAt = FieldValue.serverTimestamp();
+
+      if (_paymentFor == 'Treatment' || _paymentFor == 'Treatment & Medicine') {
+        batch.set(payments.doc(), {
+          'patientId': _selectedPatientId,
+          'paymentFor': 'Treatment',
+          'paymentMode': _paymentMode,
+          'amount': double.parse(_treatmentAmountCtrl.text),
+          'details': _detailsCtrl.text.trim(),
+          'paidAt': paidAt,
+        });
+      }
+
+      if (_paymentFor == 'Medicine' || _paymentFor == 'Treatment & Medicine') {
+        batch.set(payments.doc(), {
+          'patientId': _selectedPatientId,
+          'paymentFor': 'Medicine',
+          'paymentMode': _paymentMode,
+          'amount': double.parse(_medicineAmountCtrl.text),
+          'details': _detailsCtrl.text.trim(),
+          'paidAt': paidAt,
+        });
+      }
+
+      await batch.commit();
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Payment recorded')),
+        const SnackBar(content: Text('✅ Payment recorded successfully')),
       );
 
-      _amountCtrl.clear();
+      _treatmentAmountCtrl.clear();
+      _medicineAmountCtrl.clear();
       _detailsCtrl.clear();
-      setState(() => _selectedPatientId = null);
+      _medicineCart.clear();
+
+      setState(() {
+        _selectedPatientId = null;
+        _paymentFor = 'Treatment';
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -199,10 +227,12 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   // ======================================================
   Widget _buildScrollableBody() {
     return Expanded(
-      child: SingleChildScrollView(
-        padding: _bodyPadding,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
+        child: SingleChildScrollView(
+      padding: _bodyPadding,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Form(
+          key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -287,7 +317,7 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               const SizedBox(height: 20),
               _label('Payment For'),
               Row(
-                children: ['Treatment', 'Medicine']
+                children: ['Treatment', 'Medicine', 'Treatment & Medicine']
                     .map((e) => _radio(
                           group: _paymentFor,
                           value: e,
@@ -297,14 +327,14 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                               _medicineCart.clear();
                             });
 
-                            if (v == 'Medicine') {
+                            if (v.contains('Medicine')) {
                               _loadMedicines();
                             }
                           },
                         ))
                     .toList(),
               ),
-              if (_paymentFor == 'Medicine') ...[
+              if (_paymentFor.contains('Medicine')) ...[
                 const SizedBox(height: 20),
                 _label('Medicine Stock'),
 
@@ -357,21 +387,60 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                     .toList(),
               ),
               const SizedBox(height: 16),
-              _label('Payment Amount'),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                decoration: _dec('Enter amount'),
-                onChanged: (_) => setState(() {}),
-              ),
+              if (_paymentFor != 'Medicine') ...[
+                _label('Treatment Amount'),
+                TextFormField(
+                  controller: _treatmentAmountCtrl,
+                  validator: (v) {
+                    if (_paymentFor == 'Treatment' ||
+                        _paymentFor == 'Treatment & Medicine') {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Treatment amount is required';
+                      }
+                    }
+                    return null;
+                  },
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  decoration: _dec('Enter treatment amount'),
+                ),
+              ],
+              if (_paymentFor.contains('Medicine')) ...[
+                const SizedBox(height: 16),
+                _label('Medicine Amount'),
+                TextFormField(
+                  controller: _medicineAmountCtrl,
+                  validator: (v) {
+                    if (_paymentFor.contains('Medicine')) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Medicine amount is required';
+                      }
+                    }
+                    return null;
+                  },
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  decoration: _dec('Enter medicine amount'),
+                ),
+              ],
               const SizedBox(height: 16),
               _label('Payment Details'),
               TextFormField(
                 controller: _detailsCtrl,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Payment details required';
+                  }
+                  return null;
+                },
                 maxLines: 2,
                 decoration: _dec('Txn no / notes'),
               ),
@@ -379,15 +448,17 @@ class _PaymentWidgetState extends State<PaymentWidget> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   void _calculateMedicineTotal() {
     double total = 0;
+
     for (final c in _medicineCart) {
       total += c.quantity * (c.price ?? 0);
     }
-    _amountCtrl.text = total.toStringAsFixed(2);
+
+    _medicineAmountCtrl.text = total.toStringAsFixed(2);
     setState(() {});
   }
 
@@ -646,7 +717,11 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               label: 'Pay',
               background: const Color(0xFF111827),
               foreground: Colors.white,
-              onPressed: _canPay ? _onPay : () {},
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  _onPay();
+                }
+              },
             ),
           ],
         ),
