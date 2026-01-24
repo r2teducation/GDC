@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gt/homelayout.dart';
@@ -27,8 +27,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   static const double _headerFooterRatio = 0.08;
   static const EdgeInsets _bodyPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
 
-  // ---------------- Patient dropdown ----------------
-  final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingPatients = true;
   List<_PatientOption> _patientOptions = [];
   String? _selectedPatientId;
@@ -78,7 +76,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     _treatmentAmountCtrl.dispose();
     _medicineAmountCtrl.dispose();
     _detailsCtrl.dispose();
@@ -239,79 +236,45 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               _label('Select Patient'),
               _loadingPatients
                   ? const LinearProgressIndicator()
-                  : DropdownButtonFormField2<String>(
-                      isExpanded: true,
-                      value: _selectedPatientId,
-                      decoration: _dec("Select patient"),
-                      items: _patientOptions
-                          .map(
-                            (p) => DropdownMenuItem<String>(
-                              value: p.id,
-                              child: _patientRow(p),
+                  : DropdownSearch<_PatientOption>(
+                      items: _patientOptions,
+                      selectedItem: _selectedPatientId == null
+                          ? null
+                          : _patientOptions.firstWhere(
+                              (p) => p.id == _selectedPatientId,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        setState(() => _selectedPatientId = v);
-                      },
-                      dropdownStyleData: DropdownStyleData(
-                        maxHeight: 280,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
-                              blurRadius: 14,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        scrollbarTheme: ScrollbarThemeData(
-                          radius: const Radius.circular(12),
-                          thickness: MaterialStateProperty.all(4),
-                          thumbVisibility: MaterialStateProperty.all(true),
-                        ),
-                      ),
-                      menuItemStyleData: const MenuItemStyleData(
-                        height: 44,
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      dropdownSearchData: DropdownSearchData(
-                        searchController: _searchCtrl,
-                        searchInnerWidgetHeight: 52,
-                        searchInnerWidget: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: TextField(
-                            controller: _searchCtrl,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              hintText: 'Search by ID / Name',
-                              prefixIcon: const Icon(Icons.search, size: 18),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                      itemAsString: (item) => item.label,
+                      popupProps: PopupProps.menu(
+                        showSearchBox: true,
+                        constraints: const BoxConstraints(maxHeight: 280),
+                        containerBuilder: (context, popupWidget) {
+                          return Material(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.zero, // ERP sharp menu
+                            elevation: 6,
+                            child: popupWidget,
+                          );
+                        },
+                        searchFieldProps: TextFieldProps(
+                          decoration: InputDecoration(
+                            hintText: 'Search by ID / Name',
+                            prefixIcon: const Icon(Icons.search, size: 18),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
-                        searchMatchFn: (item, searchValue) {
-                          final value = item.value ?? '';
-                          final opt = _patientOptions.firstWhere(
-                            (p) => p.id == value,
-                            orElse: () =>
-                                _PatientOption(id: value, label: value),
-                          );
-                          return opt.label
-                              .toLowerCase()
-                              .contains(searchValue.toLowerCase());
-                        },
                       ),
-                      onMenuStateChange: (isOpen) {
-                        if (!isOpen) _searchCtrl.clear();
+                      dropdownDecoratorProps: DropDownDecoratorProps(
+                        dropdownSearchDecoration: _dec("Select patient"),
+                      ),
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setState(() => _selectedPatientId = val.id);
                       },
                     ),
               const SizedBox(height: 20),
@@ -648,6 +611,13 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               ),
             ),
             SizedBox(
+              width: 48, // 👈 small column for X
+              child: Text(
+                '',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            SizedBox(
               width: 120,
               child: Text(
                 'Price',
@@ -677,21 +647,45 @@ class _PaymentWidgetState extends State<PaymentWidget> {
             child: Row(
               children: [
                 IconButton(
-                    icon: const Icon(Icons.remove, size: 18),
-                    onPressed: c.quantity > 1 ? dec : null),
+                  icon: const Icon(Icons.remove, size: 18),
+                  onPressed: c.quantity > 1 ? dec : null,
+                ),
                 Text('${c.quantity}'),
                 IconButton(
-                    icon: const Icon(Icons.add, size: 18), onPressed: inc),
+                  icon: const Icon(Icons.add, size: 18),
+                  onPressed: inc,
+                ),
               ],
             ),
           ),
+
+// ❌ REMOVE BUTTON
+          SizedBox(
+            width: 48,
+            child: IconButton(
+              icon: const Icon(
+                Icons.close,
+                size: 18,
+                color: Color(0xFF111827),
+              ),
+              tooltip: 'Remove medicine',
+              onPressed: () {
+                setState(() {
+                  _medicineCart.removeAt(sno - 1);
+                });
+              },
+            ),
+          ),
+
           SizedBox(
             width: 120,
             child: TextField(
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'^\d+\.?\d{0,2}'),
+                ),
               ],
               onChanged: onPrice,
               decoration: _dec('₹'),

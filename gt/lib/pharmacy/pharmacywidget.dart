@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gt/homelayout.dart';
@@ -19,11 +19,8 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
   // ------------------------------
   static const Color _bgColor = Color(0xFFF6F7F9);
   static const double _headerFooterRatio = 0.08;
-  static const EdgeInsets _bodyPadding =
-      EdgeInsets.fromLTRB(24, 24, 24, 32);
+  static const EdgeInsets _bodyPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
 
-  // ---------------- Patient dropdown ----------------
-  final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingPatients = true;
   List<_PatientOption> _patientOptions = [];
   String? _selectedPatientId;
@@ -49,7 +46,6 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     _amountCtrl.dispose();
     _detailsCtrl.dispose();
     super.dispose();
@@ -241,12 +237,8 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
               _label('Select Patient'),
               _patientDropdown(),
               const SizedBox(height: 20),
-
               _label('Medicine Cart'),
-              _loadingCart
-                  ? const LinearProgressIndicator()
-                  : _cartTable(),
-
+              _loadingCart ? const LinearProgressIndicator() : _cartTable(),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
@@ -255,37 +247,29 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
                   child: const Text('Total'),
                 ),
               ),
-
               const SizedBox(height: 20),
-
               _label('Payment Mode'),
               Row(
                 children: ['Cash', 'UPI']
                     .map((e) => _radio(
                           group: _paymentMode,
                           value: e,
-                          onChanged: (v) =>
-                              setState(() => _paymentMode = v),
+                          onChanged: (v) => setState(() => _paymentMode = v),
                         ))
                     .toList(),
               ),
-
               const SizedBox(height: 16),
-
               _label('Payment Amount'),
               TextFormField(
                 controller: _amountCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(
-                      RegExp(r'^\d+\.?\d{0,2}')),
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                 ],
                 decoration: _dec('Auto calculated'),
               ),
-
               const SizedBox(height: 16),
-
               _label('Payment Details'),
               TextFormField(
                 controller: _detailsCtrl,
@@ -397,67 +381,51 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
       );
 
   Widget _patientDropdown() {
-    if (_loadingPatients) return const LinearProgressIndicator();
-
-    Widget _patientRow(_PatientOption p) {
-      final parts = p.label.split(RegExp(r'\s{2,}'));
-      return Row(
-        children: [
-          Text(parts.first,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(width: 12),
-          Expanded(child: Text(parts.last, overflow: TextOverflow.ellipsis)),
-        ],
-      );
+    if (_loadingPatients) {
+      return const LinearProgressIndicator();
     }
 
-    return DropdownButtonFormField2<String>(
-      isExpanded: true,
-      value: _selectedPatientId,
-      decoration: _dec("Select patient"),
-      items: _patientOptions
-          .map(
-            (p) => DropdownMenuItem<String>(
-              value: p.id,
-              child: _patientRow(p),
+    return DropdownSearch<_PatientOption>(
+      items: _patientOptions,
+      selectedItem: _selectedPatientId == null
+          ? null
+          : _patientOptions.firstWhere(
+              (p) => p.id == _selectedPatientId,
             ),
-          )
-          .toList(),
-      onChanged: (v) {
-        setState(() => _selectedPatientId = v);
-        if (v != null) _loadCart(v);
-      },
-      dropdownStyleData: DropdownStyleData(
-        maxHeight: 280,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+      itemAsString: (item) => item.label,
+      popupProps: PopupProps.menu(
+        showSearchBox: true,
+        constraints: const BoxConstraints(maxHeight: 280),
+        containerBuilder: (context, popupWidget) {
+          return Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.zero, // ✅ sharp ERP style
+            elevation: 6,
+            child: popupWidget,
+          );
+        },
+        searchFieldProps: TextFieldProps(
+          decoration: InputDecoration(
+            hintText: 'Search by ID / Name',
+            prefixIcon: const Icon(Icons.search, size: 18),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
-      ),
-      menuItemStyleData: const MenuItemStyleData(
-        height: 44,
-        padding: EdgeInsets.symmetric(horizontal: 16),
-      ),
-      dropdownSearchData: DropdownSearchData(
-        searchController: _searchCtrl,
-        searchInnerWidgetHeight: 52,
-        searchInnerWidget: Padding(
-          padding: const EdgeInsets.all(8),
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: _dec('Search by ID / Name'),
           ),
         ),
       ),
-      onMenuStateChange: (open) {
-        if (!open) _searchCtrl.clear();
+      dropdownDecoratorProps: DropDownDecoratorProps(
+        dropdownSearchDecoration: _dec("Select patient"),
+      ),
+      onChanged: (val) {
+        if (val == null) return;
+
+        setState(() => _selectedPatientId = val.id);
+        _loadCart(val.id); // 🔥 critical
       },
     );
   }
@@ -534,8 +502,7 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                    RegExp(r'^\d+\.?\d{0,2}')),
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
               onChanged: onPrice,
               decoration: _dec('₹'),

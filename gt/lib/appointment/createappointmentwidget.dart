@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -394,93 +394,53 @@ class _CreateAppointmentWidgetState extends State<CreateAppointmentWidget> {
                     children: [
                       _loadingPatients
                           ? const LinearProgressIndicator()
-                          : DropdownButtonFormField2<String>(
-                              isExpanded: true,
-                              value: selectedPatientId,
-                              decoration: _input('Select patient'),
-
-                              items: _patientOptions
-                                  .map(
-                                    (p) => DropdownMenuItem<String>(
-                                      value: p.id,
-                                      child: _buildPatientOptionRow(p),
+                          : DropdownSearch<_PatientOption>(
+                              items: _patientOptions,
+                              selectedItem: selectedPatientId == null
+                                  ? null
+                                  : _patientOptions.firstWhere(
+                                      (p) => p.id == selectedPatientId,
                                     ),
-                                  )
-                                  .toList(),
+                              itemAsString: (item) => item.label,
+                              popupProps: PopupProps.menu(
+                                showSearchBox: true,
+                                constraints:
+                                    const BoxConstraints(maxHeight: 280),
 
-                              onChanged: (v) {
-                                setState(() {
-                                  selectedPatientId = v;
-                                });
-                              },
+                                // clean white popup (same as other screens)
+                                containerBuilder: (context, popupWidget) {
+                                  return Material(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.zero,
+                                    elevation: 6,
+                                    child: popupWidget,
+                                  );
+                                },
 
-                              // ===== SAME DROPDOWN LOOK & FEEL =====
-                              dropdownStyleData: DropdownStyleData(
-                                maxHeight: 280,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.06),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                scrollbarTheme: ScrollbarThemeData(
-                                  radius: const Radius.circular(12),
-                                  thickness: MaterialStateProperty.all(4),
-                                  thumbVisibility:
-                                      MaterialStateProperty.all(true),
-                                ),
-                              ),
-
-                              menuItemStyleData: const MenuItemStyleData(
-                                height: 44,
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                              ),
-
-                              // ===== SEARCH (IDENTICAL BEHAVIOR) =====
-                              dropdownSearchData: DropdownSearchData(
-                                searchController: _createSearchCtrl,
-                                searchInnerWidgetHeight: 52,
-                                searchInnerWidget: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: TextField(
-                                    controller: _createSearchCtrl,
-                                    decoration: InputDecoration(
-                                      isDense: true,
-                                      hintText: 'Search by ID / Name',
-                                      prefixIcon:
-                                          const Icon(Icons.search, size: 18),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 10),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                searchFieldProps: TextFieldProps(
+                                  decoration: InputDecoration(
+                                    hintText: 'Search by ID / Name',
+                                    prefixIcon:
+                                        const Icon(Icons.search, size: 18),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 12),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),
-                                searchMatchFn: (item, searchValue) {
-                                  final value = item.value ?? '';
-                                  final opt = _patientOptions.firstWhere(
-                                    (p) => p.id == value,
-                                    orElse: () =>
-                                        _PatientOption(id: value, label: value),
-                                  );
-                                  return opt.label
-                                      .toLowerCase()
-                                      .contains(searchValue.toLowerCase());
-                                },
                               ),
-
-                              onMenuStateChange: (isOpen) {
-                                if (!isOpen) _createSearchCtrl.clear();
+                              dropdownDecoratorProps: DropDownDecoratorProps(
+                                dropdownSearchDecoration:
+                                    _input('Select patient'),
+                              ),
+                              onChanged: (val) {
+                                if (val == null) return;
+                                setState(() {
+                                  selectedPatientId = val.id;
+                                });
                               },
                             ),
                       const SizedBox(height: 12),

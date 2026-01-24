@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
@@ -13,15 +13,13 @@ class PaymentHistoryWidget extends StatefulWidget {
 
 class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
   final _db = FirebaseFirestore.instance;
-  final TextEditingController _searchCtrl = TextEditingController();
 
   // ------------------------------
   // STANDARD TEMPLATE CONSTANTS
   // ------------------------------
   static const Color _bgColor = Color(0xFFF6F7F9);
   static const double _headerFooterRatio = 0.08;
-  static const EdgeInsets _bodyPadding =
-      EdgeInsets.fromLTRB(24, 24, 24, 32);
+  static const EdgeInsets _bodyPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
 
   bool _loadingPatients = true;
   bool _loadingPayments = false;
@@ -39,7 +37,6 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -154,94 +151,53 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _sectionLabel('Patient Search'),
-
                 _loadingPatients
                     ? const LinearProgressIndicator()
-                    : DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: _selectedPatientId,
-                        decoration: _dec("Select patient"),
-                        items: _patientOptions
-                            .map(
-                              (p) => DropdownMenuItem<String>(
-                                value: p.id,
-                                child: _patientRow(p),
+                    : DropdownSearch<_PatientOption>(
+                        items: _patientOptions,
+                        selectedItem: _selectedPatientId == null
+                            ? null
+                            : _patientOptions.firstWhere(
+                                (p) => p.id == _selectedPatientId,
                               ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() => _selectedPatientId = v);
-                          if (v != null) _loadPayments(v);
-                        },
-
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 280,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
-                                blurRadius: 14,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          scrollbarTheme: ScrollbarThemeData(
-                            radius: const Radius.circular(12),
-                            thickness: MaterialStateProperty.all(4),
-                            thumbVisibility:
-                                MaterialStateProperty.all(true),
-                          ),
-                        ),
-                        menuItemStyleData: const MenuItemStyleData(
-                          height: 44,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                        ),
-                        dropdownSearchData: DropdownSearchData(
-                          searchController: _searchCtrl,
-                          searchInnerWidgetHeight: 52,
-                          searchInnerWidget: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: _searchCtrl,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: 'Search by ID / Name',
-                                prefixIcon:
-                                    const Icon(Icons.search, size: 18),
-                                filled: true,
-                                fillColor: Colors.white,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 10),
-                                border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
+                        itemAsString: (item) => item.label,
+                        popupProps: PopupProps.menu(
+                          showSearchBox: true,
+                          constraints: const BoxConstraints(maxHeight: 280),
+                          containerBuilder: (context, popupWidget) {
+                            return Material(
+                              color: Colors.white,
+                              borderRadius:
+                                  BorderRadius.zero, // ✅ sharp ERP menu
+                              elevation: 6,
+                              child: popupWidget,
+                            );
+                          },
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Search by ID / Name',
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                           ),
-                          searchMatchFn: (item, searchValue) {
-                            final value = item.value ?? '';
-                            final opt = _patientOptions.firstWhere(
-                              (p) => p.id == value,
-                              orElse: () => _PatientOption(
-                                  id: value, label: value),
-                            );
-                            return opt.label
-                                .toLowerCase()
-                                .contains(searchValue.toLowerCase());
-                          },
                         ),
-                        onMenuStateChange: (isOpen) {
-                          if (!isOpen) _searchCtrl.clear();
+                        dropdownDecoratorProps: DropDownDecoratorProps(
+                          dropdownSearchDecoration: _dec("Select patient"),
+                        ),
+                        onChanged: (val) {
+                          if (val == null) return;
+
+                          setState(() => _selectedPatientId = val.id);
+                          _loadPayments(val.id); // 🔥 important
                         },
                       ),
-
                 const SizedBox(height: 24),
-
                 if (_loadingPayments)
                   const LinearProgressIndicator()
                 else if (_payments.isEmpty)
@@ -255,17 +211,14 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF9FAFB),
                       borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
                     ),
                     child: ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _payments.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (_, i) =>
-                          _paymentTile(_payments[i]),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, i) => _paymentTile(_payments[i]),
                     ),
                   ),
               ],
@@ -329,8 +282,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           text,
-          style:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       );
 
@@ -341,8 +293,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         fillColor: const Color(0xFFF8FAFC),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       );
 
   Widget _patientRow(_PatientOption p) {

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:gt/homelayout.dart';
 import 'package:intl/intl.dart';
@@ -848,90 +848,48 @@ class _PatientSummaryWidgetState extends State<PatientSummaryWidget> {
                 Row(
                   children: [
                     Expanded(
-                      child: DropdownButtonFormField2<String>(
-                        isExpanded: true,
-                        value: _selectedPatientId,
-                        decoration: _dec("Select patient"),
-                        items: _patientOptions
-                            .map(
-                              (p) => DropdownMenuItem<String>(
-                                value: p.id,
-                                child: _buildPatientOptionRow(p),
+                      child: DropdownSearch<_PatientOption>(
+                        items: _patientOptions,
+                        selectedItem: _selectedPatientId == null
+                            ? null
+                            : _patientOptions.firstWhere(
+                                (p) => p.id == _selectedPatientId,
                               ),
-                            )
-                            .toList(),
-                        onChanged: _onPatientSelected,
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return "Please select a patient";
-                          }
-                          return null;
-                        },
+                        itemAsString: (item) => item.label,
+                        popupProps: PopupProps.menu(
+                          showSearchBox: true,
+                          constraints: const BoxConstraints(maxHeight: 280),
 
-                        // ✅ THIS MAKES THE DROPDOWN LOOK CLEAN & CURVED
-                        dropdownStyleData: DropdownStyleData(
-                          maxHeight: 280,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 14,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          scrollbarTheme: ScrollbarThemeData(
-                            radius: const Radius.circular(12),
-                            thickness: MaterialStateProperty.all(4),
-                            thumbVisibility: MaterialStateProperty.all(true),
-                          ),
-                        ),
+                          // white popup, sharp edges
+                          containerBuilder: (context, popupWidget) {
+                            return Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.zero,
+                              elevation: 6,
+                              child: popupWidget,
+                            );
+                          },
 
-                        // ✅ COMPACT ROW HEIGHT (VERY IMPORTANT)
-                        menuItemStyleData: const MenuItemStyleData(
-                          height: 44,
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                        ),
-
-                        // ✅ SEARCH BOX INSIDE DROPDOWN
-                        dropdownSearchData: DropdownSearchData(
-                          searchController: _searchCtrl,
-                          searchInnerWidgetHeight: 56,
-                          searchInnerWidget: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: _searchCtrl,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: 'Search by ID / Name',
-                                prefixIcon: const Icon(Icons.search, size: 18),
-                                filled: true,
-                                fillColor: Colors.white,
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Search by ID / Name',
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                           ),
-                          searchMatchFn: (item, searchValue) {
-                            final value = item.value ?? '';
-                            final opt = _patientOptions.firstWhere(
-                              (p) => p.id == value,
-                              orElse: () =>
-                                  _PatientOption(id: value, label: value),
-                            );
-                            return opt.label
-                                .toLowerCase()
-                                .contains(searchValue.toLowerCase());
-                          },
                         ),
-
-                        onMenuStateChange: (isOpen) {
-                          if (!isOpen) _searchCtrl.clear();
+                        dropdownDecoratorProps: DropDownDecoratorProps(
+                          dropdownSearchDecoration: _dec("Select patient"),
+                        ),
+                        onChanged: (val) {
+                          if (val == null) return;
+                          _onPatientSelected(val.id);
                         },
                       ),
                     ),
