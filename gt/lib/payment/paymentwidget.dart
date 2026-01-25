@@ -63,6 +63,30 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _loadingMedicines = false);
   }
 
+  Future<String> _generatePaymentId() async {
+    final counterRef = _db.collection('paymentCounter').doc('counter');
+
+    return _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      int lastNumber = 0;
+
+      if (snapshot.exists) {
+        lastNumber = snapshot['lastNumber'] ?? 0;
+      }
+
+      final newNumber = lastNumber + 1;
+
+      transaction.set(
+        counterRef,
+        {'lastNumber': newNumber},
+        SetOptions(merge: true),
+      );
+
+      return 'PAYID$newNumber';
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -127,7 +151,10 @@ class _PaymentWidgetState extends State<PaymentWidget> {
       final paidAt = FieldValue.serverTimestamp();
 
       if (_paymentFor == 'Treatment' || _paymentFor == 'Treatment & Medicine') {
+        final treatmentPaymentId = await _generatePaymentId();
+
         batch.set(payments.doc(), {
+          'paymentId': treatmentPaymentId,
           'patientId': _selectedPatientId,
           'paymentFor': 'Treatment',
           'paymentMode': _paymentMode,
@@ -138,7 +165,10 @@ class _PaymentWidgetState extends State<PaymentWidget> {
       }
 
       if (_paymentFor == 'Medicine' || _paymentFor == 'Treatment & Medicine') {
+        final medicinePaymentId = await _generatePaymentId();
+
         batch.set(payments.doc(), {
+          'paymentId': medicinePaymentId,
           'patientId': _selectedPatientId,
           'paymentFor': 'Medicine',
           'paymentMode': _paymentMode,
