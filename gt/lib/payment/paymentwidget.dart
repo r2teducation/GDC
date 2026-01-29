@@ -63,30 +63,6 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _loadingMedicines = false);
   }
 
-  Future<String> _generatePaymentId() async {
-    final counterRef = _db.collection('paymentCounter').doc('counter');
-
-    return _db.runTransaction((transaction) async {
-      final snapshot = await transaction.get(counterRef);
-
-      int lastNumber = 0;
-
-      if (snapshot.exists) {
-        lastNumber = snapshot['lastNumber'] ?? 0;
-      }
-
-      final newNumber = lastNumber + 1;
-
-      transaction.set(
-        counterRef,
-        {'lastNumber': newNumber},
-        SetOptions(merge: true),
-      );
-
-      return 'PAYID$newNumber';
-    });
-  }
-
   @override
   void initState() {
     super.initState();
@@ -145,40 +121,65 @@ class _PaymentWidgetState extends State<PaymentWidget> {
     setState(() => _saving = true);
 
     try {
-      final batch = _db.batch();
-      final payments = _db.collection('payments');
+      final counterRef = _db.collection('paymentCounter').doc('counter');
+      final paymentsRef = _db.collection('payments');
 
-      final paidAt = FieldValue.serverTimestamp();
+      await _db.runTransaction((transaction) async {
+        // 1️⃣ Read counter
+        final counterSnap = await transaction.get(counterRef);
 
-      if (_paymentFor == 'Treatment' || _paymentFor == 'Treatment & Medicine') {
-        final treatmentPaymentId = await _generatePaymentId();
+        int lastNumber = 0;
+        if (counterSnap.exists) {
+          lastNumber = counterSnap['lastNumber'] ?? 0;
+        }
 
-        batch.set(payments.doc(), {
-          'paymentId': treatmentPaymentId,
-          'patientId': _selectedPatientId,
-          'paymentFor': 'Treatment',
-          'paymentMode': _paymentMode,
-          'amount': double.parse(_treatmentAmountCtrl.text),
-          'details': _detailsCtrl.text.trim(),
-          'paidAt': paidAt,
-        });
-      }
+        // helper function
+        String nextPayId() {
+          lastNumber++;
+          return 'PAYID$lastNumber';
+        }
 
-      if (_paymentFor == 'Medicine' || _paymentFor == 'Treatment & Medicine') {
-        final medicinePaymentId = await _generatePaymentId();
+        final paidAt = FieldValue.serverTimestamp();
 
-        batch.set(payments.doc(), {
-          'paymentId': medicinePaymentId,
-          'patientId': _selectedPatientId,
-          'paymentFor': 'Medicine',
-          'paymentMode': _paymentMode,
-          'amount': double.parse(_medicineAmountCtrl.text),
-          'details': _detailsCtrl.text.trim(),
-          'paidAt': paidAt,
-        });
-      }
+        // 2️⃣ Treatment payment
+        if (_paymentFor == 'Treatment' ||
+            _paymentFor == 'Treatment & Medicine') {
+          final treatmentPayId = nextPayId();
 
-      await batch.commit();
+          transaction.set(paymentsRef.doc(), {
+            'paymentId': treatmentPayId,
+            'patientId': _selectedPatientId,
+            'paymentFor': 'Treatment',
+            'paymentMode': _paymentMode,
+            'amount': double.parse(_treatmentAmountCtrl.text),
+            'details': _detailsCtrl.text.trim(),
+            'paidAt': paidAt,
+          });
+        }
+
+        // 3️⃣ Medicine payment
+        if (_paymentFor == 'Medicine' ||
+            _paymentFor == 'Treatment & Medicine') {
+          final medicinePayId = nextPayId();
+
+          transaction.set(paymentsRef.doc(), {
+            'paymentId': medicinePayId,
+            'patientId': _selectedPatientId,
+            'paymentFor': 'Medicine',
+            'paymentMode': _paymentMode,
+            'amount': double.parse(_medicineAmountCtrl.text),
+            'details': _detailsCtrl.text.trim(),
+            'paidAt': paidAt,
+          });
+        }
+
+        // 4️⃣ Update counter ONCE
+        transaction.set(
+          counterRef,
+          {'lastNumber': lastNumber},
+          SetOptions(merge: true),
+        );
+      });
 
       if (!mounted) return;
 
@@ -197,8 +198,9 @@ class _PaymentWidgetState extends State<PaymentWidget> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('❌ Failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
