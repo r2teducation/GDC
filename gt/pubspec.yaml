@@ -13,7 +13,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  url_launcher: ^6.1.9
+  url_launcher: ^6.2.5
+
+  http: ^1.2.0
 
   # Font package for various text styles
   google_fonts: ^4.0.1

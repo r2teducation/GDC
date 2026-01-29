@@ -2,14 +2,24 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'createappointmentwidget.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CalendarEvent {
+  final String appointmentId;
+  final String patientId;
+  final String patientName;
+  final String mobile;
   final bool isFollowUp;
-  final DateTime dateTime; // 👈 appointment date + time
+  final DateTime dateTime;
 
   CalendarEvent({
+    required this.appointmentId,
+    required this.patientId,
+    required this.patientName,
+    required this.mobile,
     required this.isFollowUp,
     required this.dateTime,
   });
@@ -75,20 +85,40 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
 
   void _listenCalendarData() {
     _appointmentsSub =
-        _db.collection('appointments').snapshots().listen((snap) {
+        _db.collection('appointments').snapshots().listen((snap) async {
       final map = <String, List<CalendarEvent>>{};
+
       for (final d in snap.docs) {
         final ts = d['appointmentDateTime'] as Timestamp;
+        final patientId = d['patientId'];
+
+        // 🔥 fetch patient
+        final patientSnap =
+            await _db.collection('patients').doc(patientId).get();
+
+        final pdata = patientSnap.data() ?? {};
+
+        final patientName = (pdata['fullName'] ?? 'Patient').toString();
+
+        final mobile = (pdata['mobile'] ?? '').toString();
+
         final isFollowUp =
             (d['appointmentType'] ?? '').toString().toUpperCase() == 'F';
+
         final key = _ymd(ts.toDate());
+
         map.putIfAbsent(key, () => []).add(
               CalendarEvent(
+                appointmentId: d.id,
+                patientId: patientId,
+                patientName: patientName,
+                mobile: mobile,
                 isFollowUp: isFollowUp,
-                dateTime: ts.toDate(), // 👈 from appointmentDateTime
+                dateTime: ts.toDate(),
               ),
             );
       }
+
       setState(() => _eventsMap = map);
     });
 
@@ -123,6 +153,72 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
       35,
       (i) => first.subtract(Duration(days: offset - i)),
     );
+  }
+
+  Future<void> _confirmAndSendWhatsApp(
+    BuildContext ctx,
+    CalendarEvent ev,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Send WhatsApp Reminder'),
+        content: Text(
+          'Open WhatsApp to send reminder to ${ev.patientName}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Open WhatsApp'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    await _sendWhatsApp(ev);
+  }
+
+  Future<void> _sendWhatsApp(CalendarEvent ev) async {
+    final phone = ev.mobile.replaceAll(RegExp(r'\D'), '');
+
+    final dateStr = DateFormat('EEEE, dd MMM yyyy').format(ev.dateTime);
+
+    final timeStr = DateFormat('h:mm a').format(ev.dateTime);
+
+    final message = '''
+Dear ${ev.patientName},
+
+This is a gentle reminder of your appointment with Dr. Ramesh.
+
+• Date : $dateStr
+• Time : $timeStr
+
+Please be on time.
+
+Thank you,
+Global Dental Clinic
+''';
+
+    final url = Uri.parse(
+      'https://wa.me/$phone?text=${Uri.encodeComponent(message)}',
+    );
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WhatsApp not available')),
+      );
+    }
   }
 
   @override
@@ -208,7 +304,9 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                             : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isToday ? Colors.grey.shade400 : Colors.grey.shade300,
+                          color: isToday
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade300,
                           width: isToday ? 1.5 : 1,
                         ),
                       ),
@@ -379,49 +477,58 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
                                       DateFormat('h:mm a').format(ev.dateTime);
 
                                   return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.04),
-                                          blurRadius: 8,
-                                        )
-                                      ],
-                                    ),
-                                    child: ListTile(
-                                      leading: Container(
-                                        width: 6,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: color,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.04),
+                                            blurRadius: 8,
+                                          )
+                                        ],
                                       ),
-                                      title: Text(
-                                        timeLabel,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade700,
-                                        ),
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          ev.isFollowUp
-                                              ? 'Follow-up Appointment'
-                                              : 'New Appointment',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
+                                      child: ListTile(
+                                        leading: Container(
+                                          width: 6,
+                                          height: 44,
+                                          decoration: BoxDecoration(
                                             color: color,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  );
+                                        title: Text(
+                                          timeLabel,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                        subtitle: Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            ev.isFollowUp
+                                                ? 'Follow-up Appointment'
+                                                : 'New Appointment',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: color,
+                                            ),
+                                          ),
+                                        ),
+                                        trailing: IconButton(
+                                          icon: const Icon(
+                                              Icons.message_outlined),
+                                          tooltip: 'Send reminder',
+                                          onPressed: () {
+                                            _confirmAndSendWhatsApp(ctx, ev);
+                                          },
+                                        ),
+                                      ));
                                 }).toList(),
                               ),
 
@@ -554,6 +661,75 @@ class _PatientCalendarWidgetState extends State<PatientCalendarWidget> {
         );
       },
     );
+  }
+
+  Future<void> _confirmAndSendSms(
+    BuildContext ctx,
+    CalendarEvent ev,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Send Reminder'),
+        content: Text(
+          'Send appointment reminder to ${ev.patientName}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    await _sendSms(ev);
+  }
+
+  Future<void> _sendSms(CalendarEvent ev) async {
+    final apiKey = 'YOUR_TEXTLOCAL_API_KEY';
+
+    final message = 'Dear ${ev.patientName}\n'
+        'This is a gentle reminder that you have an appointment '
+        'with Dr. Ramesh on '
+        '${DateFormat('dd MMM yyyy, h:mm a').format(ev.dateTime)}';
+
+    final url = Uri.parse('https://api.textlocal.in/send/');
+
+    try {
+      final response = await http.post(
+        url,
+        body: {
+          'apikey': apiKey,
+          'numbers': ev.mobile, // example: 919876543210
+          'sender': 'CLINIC',
+          'message': message,
+        },
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (data['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ SMS sent successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('❌ SMS failed: ${data['errors'][0]['message']}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Network error while sending SMS')),
+      );
+    }
   }
 
   Future<void> _logDoctorBusyHours(BuildContext ctx, DateTime day) async {

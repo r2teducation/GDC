@@ -116,77 +116,86 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   // Save payment
   // ======================================================
   Future<void> _onPay() async {
-    if (!_canPay) return;
+    if (_selectedPatientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select patient')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
 
     try {
+      final batch = _db.batch();
+
       final counterRef = _db.collection('paymentCounter').doc('counter');
-      final paymentsRef = _db.collection('payments');
+      final counterSnap = await counterRef.get();
 
-      await _db.runTransaction((transaction) async {
-        // 1️⃣ Read counter
-        final counterSnap = await transaction.get(counterRef);
+      int lastNumber =
+          counterSnap.exists ? (counterSnap.data()?['lastNumber'] ?? 0) : 0;
 
-        int lastNumber = 0;
-        if (counterSnap.exists) {
-          lastNumber = counterSnap['lastNumber'] ?? 0;
-        }
+      String nextPayId() {
+        lastNumber++;
+        return 'PAYID$lastNumber';
+      }
 
-        // helper function
-        String nextPayId() {
-          lastNumber++;
-          return 'PAYID$lastNumber';
-        }
+      final paidAt = FieldValue.serverTimestamp();
 
-        final paidAt = FieldValue.serverTimestamp();
+      // ---------------- TREATMENT ----------------
+      if (_paymentFor == 'Treatment' || _paymentFor == 'Treatment & Medicine') {
+        final payRef = _db.collection('payments').doc();
 
-        // 2️⃣ Treatment payment
-        if (_paymentFor == 'Treatment' ||
-            _paymentFor == 'Treatment & Medicine') {
-          final treatmentPayId = nextPayId();
+        batch.set(payRef, {
+          'paymentId': nextPayId(),
+          'patientId': _selectedPatientId,
+          'paymentFor': 'Treatment',
+          'paymentMode': _paymentMode,
+          'amount': double.parse(_treatmentAmountCtrl.text),
+          'details': _detailsCtrl.text.trim().isEmpty
+              ? null
+              : _detailsCtrl.text.trim(),
+          'paidAt': paidAt,
+        });
+      }
 
-          transaction.set(paymentsRef.doc(), {
-            'paymentId': treatmentPayId,
-            'patientId': _selectedPatientId,
-            'paymentFor': 'Treatment',
-            'paymentMode': _paymentMode,
-            'amount': double.parse(_treatmentAmountCtrl.text),
-            'details': _detailsCtrl.text.trim(),
-            'paidAt': paidAt,
+      // ---------------- MEDICINE ----------------
+      if (_paymentFor.contains('Medicine')) {
+        final payRef = _db.collection('payments').doc();
+
+        batch.set(payRef, {
+          'paymentId': nextPayId(),
+          'patientId': _selectedPatientId,
+          'paymentFor': 'Medicine',
+          'paymentMode': _paymentMode,
+          'amount': double.parse(_medicineAmountCtrl.text),
+          'details': _detailsCtrl.text.trim().isEmpty
+              ? null
+              : _detailsCtrl.text.trim(),
+          'paidAt': paidAt,
+        });
+
+        // 🔥 STOCK UPDATE
+        for (final item in _medicineCart) {
+          final medRef = _db.collection('medicines').doc(item.medicineId);
+
+          batch.update(medRef, {
+            'quantityPurchased': FieldValue.increment(-item.quantity),
+            'updatedAt': FieldValue.serverTimestamp(),
           });
         }
+      }
 
-        // 3️⃣ Medicine payment
-        if (_paymentFor == 'Medicine' ||
-            _paymentFor == 'Treatment & Medicine') {
-          final medicinePayId = nextPayId();
-
-          transaction.set(paymentsRef.doc(), {
-            'paymentId': medicinePayId,
-            'patientId': _selectedPatientId,
-            'paymentFor': 'Medicine',
-            'paymentMode': _paymentMode,
-            'amount': double.parse(_medicineAmountCtrl.text),
-            'details': _detailsCtrl.text.trim(),
-            'paidAt': paidAt,
-          });
-        }
-
-        // 4️⃣ Update counter ONCE
-        transaction.set(
-          counterRef,
-          {'lastNumber': lastNumber},
-          SetOptions(merge: true),
-        );
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Payment recorded successfully')),
+      // ---------------- COUNTER ----------------
+      batch.set(
+        counterRef,
+        {'lastNumber': lastNumber},
+        SetOptions(merge: true),
       );
 
+      // ✅ COMMIT
+      await batch.commit();
+
+      // ---------------- UI RESET ----------------
       _treatmentAmountCtrl.clear();
       _medicineAmountCtrl.clear();
       _detailsCtrl.clear();
@@ -196,13 +205,16 @@ class _PaymentWidgetState extends State<PaymentWidget> {
         _selectedPatientId = null;
         _paymentFor = 'Treatment';
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Payment successful')),
+      );
     } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ Failed: $e')),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      setState(() => _saving = false);
     }
   }
 
@@ -430,14 +442,8 @@ class _PaymentWidgetState extends State<PaymentWidget> {
               _label('Payment Details'),
               TextFormField(
                 controller: _detailsCtrl,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Payment details required';
-                  }
-                  return null;
-                },
                 maxLines: 2,
-                decoration: _dec('Txn no / notes'),
+                decoration: _dec('Txn no / notes (optional)'),
               ),
             ],
           ),
@@ -553,7 +559,7 @@ class _PaymentWidgetState extends State<PaymentWidget> {
           SizedBox(
             width: 60,
             child: TextButton(
-              onPressed: onAdd,
+              onPressed: m['availableQty'] > 0 ? onAdd : null,
               child: const Text('Add'),
             ),
           ),
@@ -563,16 +569,34 @@ class _PaymentWidgetState extends State<PaymentWidget> {
   }
 
   void _addToCart(Map<String, dynamic> m) {
-    final index = _medicineCart.indexWhere((e) => e.medicineId == m['id']);
+    final index = _medicineCart.indexWhere(
+      (e) => e.medicineId == m['id'],
+    );
+
+    final int available = m['availableQty'] ?? 0;
+
+    if (available <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Out of stock')),
+      );
+      return;
+    }
 
     setState(() {
       if (index >= 0) {
-        _medicineCart[index].quantity++;
+        if (_medicineCart[index].quantity < available) {
+          _medicineCart[index].quantity++;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Stock limit reached')),
+          );
+        }
       } else {
         _medicineCart.add(
           _MedicineCartItem(
             medicineId: m['id'],
             medicineName: m['medicineName'],
+            availableQty: available, // 🔥 IMPORTANT
             quantity: 1,
           ),
         );
@@ -685,7 +709,15 @@ class _PaymentWidgetState extends State<PaymentWidget> {
                 Text('${c.quantity}'),
                 IconButton(
                   icon: const Icon(Icons.add, size: 18),
-                  onPressed: inc,
+                  onPressed: c.quantity < c.availableQty
+                      ? inc
+                      : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('⚠️ Cannot exceed available stock'),
+                            ),
+                          );
+                        },
                 ),
               ],
             ),
@@ -859,12 +891,14 @@ class _PatientOption {
 class _MedicineCartItem {
   final String medicineId;
   final String medicineName;
+  final int availableQty; // 🔥 NEW
   int quantity;
   double? price;
 
   _MedicineCartItem({
     required this.medicineId,
     required this.medicineName,
+    required this.availableQty,
     required this.quantity,
   });
 }
