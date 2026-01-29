@@ -15,6 +15,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 
 import 'dart:ui' as ui; // required for HtmlElementView
 
@@ -32,6 +34,8 @@ class FollowUpWidget extends StatefulWidget {
 }
 
 class _FollowUpWidgetState extends State<FollowUpWidget> {
+  // ---------------- New Problems ----------------
+  final List<_ProblemRow> _newProblems = [];
   static const Color _tableBorder = Color(0xFFD1D5DB); // grey-300
   static const Color _tableBg = Color(0xFFF3F4F6); // grey-100
   static const Color _tableHeaderBg = Color(0xFF111827); // black
@@ -108,6 +112,602 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   void dispose() {
     _doctorNotesCtrl.dispose();
     super.dispose();
+  }
+
+  void _openAddProblemDialog() {
+    final dialogState = AddProblemDialogState();
+    final TextEditingController notesCtrl = TextEditingController();
+
+    final maxWidth = MediaQuery.of(context).size.width * 0.9;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
+    showDialog(
+      context: context,
+      builder: (dctx) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+              child: StatefulBuilder(
+                builder: (context, setStateDialog) {
+                  Widget toothBox(int number) {
+                    final selected = dialogState.selectedTeeth.contains(number);
+                    return InkWell(
+                      onTap: () {
+                        setStateDialog(() {
+                          dialogState.toggleTooth(number);
+                        });
+                      },
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? const Color(0xFF0EA5A4) : Colors.white,
+                          border: Border.all(color: Colors.grey.shade400),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$number',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  Widget quadrant(String title, List<int> teeth) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        const SizedBox(height: 6),
+                        GridView.count(
+                          shrinkWrap: true,
+                          crossAxisCount: 8,
+                          mainAxisSpacing: 4,
+                          crossAxisSpacing: 4,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: teeth.map(toothBox).toList(),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= HEADER =================
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(14),
+                              topRight: Radius.circular(14),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Add Problem',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: () {
+                                  Navigator.of(dctx).pop();
+
+                                  // Dispose AFTER dialog is fully removed
+                                  Future.microtask(() {
+                                    dialogState.dispose();
+                                    notesCtrl.dispose();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ================= BODY =================
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: quadrant('Upper Left',
+                                            [18, 17, 16, 15, 14, 13, 12, 11])),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: quadrant('Upper Right',
+                                            [21, 22, 23, 24, 25, 26, 27, 28])),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: quadrant('Lower Left',
+                                            [48, 47, 46, 45, 44, 43, 42, 41])),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: quadrant('Lower Right',
+                                            [31, 32, 33, 34, 35, 36, 37, 38])),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField2<String>(
+                                  isExpanded: true,
+                                  decoration: _dec('Type of problem'),
+
+                                  items: const [
+                                    'Root Canal',
+                                    'Implants',
+                                    'Impaction',
+                                    'Crowns/Bridges',
+                                    'Braces',
+                                    'Dentures',
+                                    'Extraction',
+                                    'Filling',
+                                    'Scaling',
+                                    'Cervical Abrasion',
+                                    'Generalized Gingivitis'
+                                  ]
+                                      .map(
+                                        (e) => DropdownMenuItem<String>(
+                                          value: e,
+                                          child: Text(
+                                            e,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w500),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+
+                                  onChanged: (v) {
+                                    setStateDialog(() {
+                                      dialogState.setProblemType(v);
+                                    });
+                                  },
+
+                                  // ✅ MATCH PATIENT SEARCH DROPDOWN STYLE
+                                  dropdownStyleData: DropdownStyleData(
+                                    maxHeight: 260,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    scrollbarTheme: ScrollbarThemeData(
+                                      radius: const Radius.circular(12),
+                                      thickness: MaterialStateProperty.all(4),
+                                      thumbVisibility:
+                                          MaterialStateProperty.all(true),
+                                    ),
+                                  ),
+
+                                  // ✅ COMPACT, CLEAN ROW HEIGHT
+                                  menuItemStyleData: const MenuItemStyleData(
+                                    height: 44,
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 16),
+                                  ),
+                                ),
+                                if (dialogState.problemType == 'Impaction')
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Type of Impaction',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          _impactionRadio(
+                                            label: 'Mesio-angular',
+                                            value: 'Mesio-angular',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Disto-angular',
+                                            value: 'Disto-angular',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Vertical',
+                                            value: 'Vertical',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                          _impactionRadio(
+                                            label: 'Horizontal',
+                                            value: 'Horizontal',
+                                            group: dialogState.impactionType,
+                                            onChanged: (v) =>
+                                                setStateDialog(() {
+                                              dialogState.impactionType = v;
+                                            }),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                if (dialogState.problemType == 'Implants')
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 12),
+
+                                      const Text(
+                                        'Implant Type',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                      ),
+
+                                      const SizedBox(height: 6),
+
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: RadioListTile<String>(
+                                              value: 'Basal',
+                                              groupValue:
+                                                  dialogState.implantType,
+                                              onChanged: (v) =>
+                                                  setStateDialog(() {
+                                                dialogState.implantType = v;
+                                              }),
+                                              title: const Text('Basal',
+                                                  style:
+                                                      TextStyle(fontSize: 13)),
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: RadioListTile<String>(
+                                              value: 'Conventional',
+                                              groupValue:
+                                                  dialogState.implantType,
+                                              onChanged: (v) =>
+                                                  setStateDialog(() {
+                                                dialogState.implantType = v;
+                                              }),
+                                              title: const Text('Conventional',
+                                                  style:
+                                                      TextStyle(fontSize: 13)),
+                                              dense: true,
+                                              contentPadding: EdgeInsets.zero,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 12),
+
+                                      // ───────── Implant Grid (2 rows × 3 columns) ─────────
+                                      Column(
+                                        children: [
+                                          // Row 1
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantWidthCtrl,
+                                                  decoration: _dec(
+                                                      'Implant Width (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantLengthCtrl,
+                                                  decoration: _dec(
+                                                      'Implant Length (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: TextFormField(
+                                                  controller: dialogState
+                                                      .implantCompanyCtrl,
+                                                  decoration:
+                                                      _dec('Implant Company'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 12),
+
+                                          // Row 2
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label:
+                                                      'Healing Cap Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date: dialogState
+                                                      .healingCapDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .healingCapDate = d),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label: 'Abutment Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date:
+                                                      dialogState.abutmentDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .abutmentDate = d),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _implantDatePicker(
+                                                  label: 'Crown Placement',
+                                                  icon: Icons.calendar_today,
+                                                  date: dialogState.crownDate,
+                                                  onPick: (d) => setStateDialog(
+                                                      () => dialogState
+                                                          .crownDate = d),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                if (dialogState.problemType == 'Root Canal' &&
+                                    dialogState.selectedTeeth.isNotEmpty)
+                                  Column(
+                                    children:
+                                        dialogState.selectedTeeth.map((tooth) {
+                                      final canals =
+                                          dialogState.rctInputs[tooth] ?? {};
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Tooth $tooth – Canal Lengths',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          GridView.count(
+                                            shrinkWrap: true,
+                                            crossAxisCount: 3,
+                                            mainAxisSpacing: 8,
+                                            crossAxisSpacing: 8,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            childAspectRatio: 3.2,
+                                            children: [
+                                              ...canals.entries.map(
+                                                (e) => TextFormField(
+                                                  controller: e.value,
+                                                  decoration:
+                                                      _dec('${e.key} (mm)'),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ),
+                                              TextFormField(
+                                                controller: dialogState
+                                                    .rctOtherInputs[tooth],
+                                                decoration:
+                                                    _dec('Others (mm / notes)'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: notesCtrl,
+                                  decoration: _dec('Notes'),
+                                  maxLines: 3,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ================= FOOTER =================
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (dialogState.selectedTeeth.isEmpty ||
+                                      dialogState.problemType == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Please select teeth and problem type')),
+                                    );
+                                    return;
+                                  }
+
+                                  setState(() {
+                                    String finalNotes = notesCtrl.text.trim();
+
+                                    if (dialogState.problemType ==
+                                        'Root Canal') {
+                                      finalNotes =
+                                          '${dialogState.buildRootCanalPrefix()}$finalNotes'
+                                              .trim();
+                                    }
+
+                                    if (dialogState.problemType == 'Implants') {
+                                      finalNotes =
+                                          '${dialogState.buildImplantPrefix()}$finalNotes'
+                                              .trim();
+                                    }
+
+                                    if (dialogState.problemType ==
+                                        'Impaction') {
+                                      finalNotes =
+                                          '${dialogState.buildImpactionPrefix()}$finalNotes'
+                                              .trim();
+                                    }
+
+                                    _newProblems.add(_ProblemRow(
+                                      teeth: dialogState.selectedTeeth.toList(),
+                                      type: dialogState.problemType!,
+                                      notes: finalNotes,
+                                    ));
+                                  });
+
+                                  dialogState.dispose();
+                                  Navigator.of(dctx).pop();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 26, vertical: 12),
+                                ),
+                                child: const Text('Add'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _impactionRadio({
+    required String label,
+    required String value,
+    required String? group,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Expanded(
+      child: RadioListTile<String>(
+        value: value,
+        groupValue: group,
+        onChanged: (v) => onChanged(v!),
+        title: Text(label, style: const TextStyle(fontSize: 13)),
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  Widget _implantDatePicker({
+    required String label,
+    required DateTime? date,
+    required ValueChanged<DateTime?> onPick,
+    required IconData icon,
+  }) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF6B7280),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      onPressed: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) onPick(picked);
+      },
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              date == null
+                  ? label
+                  : '${DateFormat('dd-MMM-yyyy').format(date)}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _infoTableCard({
@@ -291,6 +891,13 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   Future<void> _onPatientSelected(String? v) async {
     setState(() {
       _selectedPatientId = v;
+
+      // 🔥 RESET FOLLOW-UP FORM STATE
+      _newProblems.clear(); // ✅ THIS WAS MISSING
+      _doctorNotesCtrl.clear(); // optional but recommended
+      _medicineCart.clear(); // optional but correct
+      _selectedScans.clear(); // optional but correct
+
       _patientHealthSnapshot = null;
       _chiefComplaintSnapshot = [];
       _chiefComplaintDoctorNotes = null;
@@ -683,6 +1290,44 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                   .format((f['followUpDate'] as Timestamp).toDate()),
               rows: [
                 _tableRowItem(
+                  'Problems',
+                  (f['problems'] != null && (f['problems'] as List).isNotEmpty)
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: (f['problems'] as List).map((p) {
+                            final teeth = (p['teeth'] as List).join(', ');
+                            final type = p['type'] ?? '';
+                            final notes = (p['notes'] ?? '').toString().trim();
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: _readOnlyText,
+                                    height: 1.4,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: 'Teeth: $teeth — $type',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                    if (notes.isNotEmpty)
+                                      TextSpan(text: ' — $notes'),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        )
+                      : const Text(
+                          'No new problems',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                ),
+                _tableRowItem(
                   'Notes',
                   Text(
                     f['doctorNotes'] ?? 'No notes',
@@ -1004,6 +1649,15 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
         'followUpDate': Timestamp.fromDate(_selectedDate),
 
         'doctorNotes': _doctorNotesCtrl.text.trim(),
+
+        // ✅ SAME AS TREATMENT
+        'problems': _newProblems
+            .map((p) => {
+                  'teeth': p.teeth,
+                  'type': p.type,
+                  'notes': p.notes,
+                })
+            .toList(),
 
         // ✅ ALWAYS non-null, ALWAYS a List
         'prescribedMedicinesCart': (_medicineCart ?? [])
@@ -1332,6 +1986,70 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                   onPressed: _pickScans,
                   icon: const Icon(Icons.add_a_photo, color: Colors.white),
                   label: const Text('Add Scans'),
+                ),
+
+                // ================= NEW PROBLEMS =================
+                _sectionHeader('New Problems'),
+
+                for (int i = 0; i < _newProblems.length; i++)
+                  Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Teeth: ${_newProblems[i].teeth.join(', ')}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _newProblems[i].type,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _newProblems[i].notes,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    color: Color(0xFF4B5563),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.redAccent),
+                            onPressed: () =>
+                                setState(() => _newProblems.removeAt(i)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                ElevatedButton.icon(
+                  style: _blackActionButtonStyle,
+                  onPressed: _openAddProblemDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add New Problem'),
                 ),
 
                 _sectionHeader('Doctor Notes'),
@@ -1916,4 +2634,200 @@ class _PatientOption {
   final String id;
   final String label;
   _PatientOption({required this.id, required this.label});
+}
+
+class AddProblemDialogState {
+  // ---------- IMPLANT STATE ----------
+  String? implantType; // Basal / Conventional
+
+  final TextEditingController implantWidthCtrl = TextEditingController();
+  final TextEditingController implantLengthCtrl = TextEditingController();
+  final TextEditingController implantCompanyCtrl = TextEditingController();
+
+  String buildImpactionPrefix() {
+    if (impactionType == null) return '';
+
+    return '[ Impaction – $impactionType ] ';
+  }
+
+  // ---------- IMPACTION STATE ----------
+  String? impactionType;
+
+  DateTime? healingCapDate;
+  DateTime? abutmentDate;
+  DateTime? crownDate;
+
+  final Set<int> selectedTeeth = {};
+  String? problemType;
+
+  final Map<int, Map<String, TextEditingController>> rctInputs = {};
+  final Map<int, TextEditingController> rctOtherInputs = {};
+
+  // ---------- Domain rule ----------
+  List<String> getCanalsForTooth(int tooth) {
+    if ([11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43].contains(tooth)) {
+      return ['Single'];
+    }
+    if ([14, 24, 15, 25].contains(tooth)) {
+      return ['Buccal', 'Palatal'];
+    }
+    if ([34, 44, 35, 45].contains(tooth)) {
+      return ['Buccal', 'Lingual'];
+    }
+    if ([16, 26, 17, 27, 18, 28].contains(tooth)) {
+      return ['Palatal', 'Mesial', 'Distal'];
+    }
+    if ([36, 46, 37, 47, 38, 48].contains(tooth)) {
+      return ['Mesial', 'Distal', 'Lingual', 'Distal 2'];
+    }
+    return [];
+  }
+
+  // ---------- Core reconciliation ----------
+  void reconcile() {
+    if (problemType != 'Root Canal') {
+      _clearAll();
+      return;
+    }
+
+    // remove orphan teeth
+    for (final tooth in rctInputs.keys.toList()) {
+      if (!selectedTeeth.contains(tooth)) {
+        _disposeTooth(tooth);
+      }
+    }
+
+    // ensure controllers exist
+    for (final tooth in selectedTeeth) {
+      if (!rctInputs.containsKey(tooth)) {
+        _initTooth(tooth);
+      }
+    }
+  }
+
+  // ---------- Public API ----------
+  void toggleTooth(int tooth) {
+    selectedTeeth.contains(tooth)
+        ? selectedTeeth.remove(tooth)
+        : selectedTeeth.add(tooth);
+    reconcile();
+  }
+
+  void setProblemType(String? type) {
+    problemType = type;
+
+    if (type != 'Implants') {
+      implantType = null;
+      implantWidthCtrl.clear();
+      implantLengthCtrl.clear();
+      implantCompanyCtrl.clear();
+      healingCapDate = null;
+      abutmentDate = null;
+      crownDate = null;
+    }
+
+    if (type != 'Impaction') {
+      impactionType = null; // 👈 IMPORTANT
+    }
+
+    reconcile();
+  }
+
+  String buildImplantPrefix() {
+    final List<String> parts = [];
+
+    if (implantType != null) {
+      parts.add('Type: $implantType');
+    }
+
+    if (implantWidthCtrl.text.isNotEmpty) {
+      parts.add('Width: ${implantWidthCtrl.text}mm');
+    }
+
+    if (implantLengthCtrl.text.isNotEmpty) {
+      parts.add('Length: ${implantLengthCtrl.text}mm');
+    }
+
+    if (implantCompanyCtrl.text.isNotEmpty) {
+      parts.add('Company: ${implantCompanyCtrl.text}');
+    }
+
+    if (healingCapDate != null) {
+      parts.add(
+        'Healing cap: ${DateFormat('dd-MMM-yyyy').format(healingCapDate!)}',
+      );
+    }
+
+    if (abutmentDate != null) {
+      parts.add(
+        'Abutment: ${DateFormat('dd-MMM-yyyy').format(abutmentDate!)}',
+      );
+    }
+
+    if (crownDate != null) {
+      parts.add(
+        'Crown: ${DateFormat('dd-MMM-yyyy').format(crownDate!)}',
+      );
+    }
+
+    if (parts.isEmpty) return '';
+
+    return '[ Implant ${parts.join(', ')} ] ';
+  }
+
+  String buildRootCanalPrefix() {
+    final buffer = StringBuffer();
+
+    for (final tooth in selectedTeeth.toList()..sort()) {
+      final parts = <String>[];
+
+      final canals = rctInputs[tooth];
+      if (canals != null) {
+        for (final e in canals.entries) {
+          if (e.value.text.trim().isNotEmpty) {
+            parts.add('${e.key}: ${e.value.text.trim()}mm');
+          }
+        }
+      }
+
+      final other = rctOtherInputs[tooth];
+      if (other != null && other.text.trim().isNotEmpty) {
+        parts.add('Others: ${other.text.trim()}mm');
+      }
+
+      if (parts.isNotEmpty) {
+        buffer.write('[ Tooth $tooth – ${parts.join(', ')} ] ');
+      }
+    }
+    return buffer.toString();
+  }
+
+  void dispose() {
+    implantWidthCtrl.dispose();
+    implantLengthCtrl.dispose();
+    implantCompanyCtrl.dispose();
+    _clearAll();
+    selectedTeeth.clear();
+  }
+
+  // ---------- Internals ----------
+  void _initTooth(int tooth) {
+    rctInputs[tooth] = {
+      for (final c in getCanalsForTooth(tooth)) c: TextEditingController()
+    };
+    rctOtherInputs[tooth] = TextEditingController();
+  }
+
+  void _disposeTooth(int tooth) {
+    rctInputs[tooth]?.values.forEach((c) => c.dispose());
+    rctInputs.remove(tooth);
+    rctOtherInputs[tooth]?.dispose();
+    rctOtherInputs.remove(tooth);
+  }
+
+  void _clearAll() {
+    for (final tooth in rctInputs.keys.toList()) {
+      _disposeTooth(tooth);
+    }
+  }
 }
