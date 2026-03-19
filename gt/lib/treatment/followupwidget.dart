@@ -101,6 +101,15 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
 
   bool _saving = false;
 
+  int _getAvailableQty(String medicineId) {
+    final stock = _medicineStock.firstWhere(
+      (m) => m['id'] == medicineId,
+      orElse: () => {},
+    );
+
+    return stock['availableQty'] ?? 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2317,6 +2326,21 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                       IconButton(
                         icon: const Icon(Icons.add, size: 18),
                         onPressed: () {
+                          final availableQty =
+                              _getAvailableQty(c['medicineId']);
+                          final currentQty = c['quantity'];
+
+                          if (currentQty >= availableQty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Only $availableQty quantity available for ${c['medicineName']}',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
                           setDialogState(() {
                             c['quantity']++;
                           });
@@ -2440,18 +2464,37 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
   }
 
   void _addToCart(Map<String, dynamic> m) {
-    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
+    final medicineId = m['id'];
+    final availableQty = _getAvailableQty(medicineId);
+
+    final index =
+        _medicineCart.indexWhere((e) => e['medicineId'] == medicineId);
+
+    final currentQty = index >= 0 ? _medicineCart[index]['quantity'] : 0;
+
+    // 🔥 STOCK VALIDATION
+    if (currentQty >= availableQty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only $availableQty quantity available for ${m['medicineName']}',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (index >= 0) {
-      _medicineCart[index]['quantity'] += 1;
+      _medicineCart[index]['quantity']++;
     } else {
       _medicineCart.add({
-        'medicineId': m['id'],
+        'medicineId': medicineId,
         'medicineName': m['medicineName'],
         'quantity': 1,
         'price': null,
       });
     }
+
     setState(() {});
   }
 
@@ -2492,24 +2535,23 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
             children: [
               SizedBox(
                 width: 40,
-                child: Text(
-                  'S.No',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                child:
+                    Text('S.No', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
               Expanded(
-                child: Text(
-                  'Medicine Name',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                child: Text('Medicine Name',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
               ),
               SizedBox(
-                width: 80,
+                width: 60,
                 child: Text(
                   'Qty',
                   textAlign: TextAlign.right,
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
+              ),
+              SizedBox(
+                width: 40,
               ),
             ],
           ),
@@ -2534,18 +2576,38 @@ class _FollowUpWidgetState extends State<FollowUpWidget> {
                   width: 40,
                   child: Text('${index + 1}'),
                 ),
+
                 Expanded(
                   child: Text(
                     m['medicineName'],
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
+
                 SizedBox(
-                  width: 80,
+                  width: 60,
                   child: Text(
                     '${m['quantity']}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+
+                // ❌ DELETE BUTTON
+                SizedBox(
+                  width: 40,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Color(0xFF6B7280),
+                    ),
+                    tooltip: 'Remove medicine',
+                    onPressed: () {
+                      setState(() {
+                        _medicineCart.removeAt(index);
+                      });
+                    },
                   ),
                 ),
               ],

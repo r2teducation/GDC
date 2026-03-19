@@ -147,6 +147,15 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
     );
   }
 
+  int _getAvailableQty(String medicineId) {
+    final stock = _medicineStock.firstWhere(
+      (m) => m['id'] == medicineId,
+      orElse: () => {},
+    );
+
+    return stock['availableQty'] ?? 0;
+  }
+
   Widget _infoTableCard({
     required String title,
     required String subtitle,
@@ -370,19 +379,36 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
   }
 
   void _addToCart(Map<String, dynamic> m) {
-    final index = _medicineCart.indexWhere((e) => e['medicineId'] == m['id']);
+    final medicineId = m['id'];
+    final available = _getAvailableQty(medicineId);
+
+    final index =
+        _medicineCart.indexWhere((e) => e['medicineId'] == medicineId);
+
+    int currentQty = index >= 0 ? _medicineCart[index]['quantity'] : 0;
+
+    // 🔥 STOCK CHECK
+    if (currentQty >= available) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only $available quantity available for ${m['medicineName']}',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (index >= 0) {
-      _medicineCart[index]['quantity'] += 1;
+      _medicineCart[index]['quantity']++;
     } else {
       _medicineCart.add({
-        'medicineId': m['id'],
+        'medicineId': medicineId,
         'medicineName': m['medicineName'],
         'quantity': 1,
         'price': null,
       });
     }
-    setState(() {});
   }
 
   Widget _buildMedicineCart(void Function(void Function()) setDialogState) {
@@ -437,6 +463,20 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                       IconButton(
                         icon: const Icon(Icons.add, size: 18),
                         onPressed: () {
+                          final available = _getAvailableQty(c['medicineId']);
+                          final currentQty = c['quantity'];
+
+                          if (currentQty >= available) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Only $available quantity available for ${c['medicineName']}',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
                           setDialogState(() {
                             c['quantity']++;
                           });
@@ -2011,12 +2051,15 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                 ),
               ),
               SizedBox(
-                width: 80,
+                width: 60,
                 child: Text(
                   'Qty',
                   textAlign: TextAlign.right,
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
+              ),
+              SizedBox(
+                width: 40, // ❌ column
               ),
             ],
           ),
@@ -2041,18 +2084,38 @@ class _TreatmentWidgetState extends State<TreatmentWidget> {
                   width: 40,
                   child: Text('${index + 1}'),
                 ),
+
                 Expanded(
                   child: Text(
                     m['medicineName'],
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
+
                 SizedBox(
-                  width: 80,
+                  width: 60,
                   child: Text(
                     '${m['quantity']}',
                     textAlign: TextAlign.right,
                     style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+
+                // ❌ DELETE BUTTON
+                SizedBox(
+                  width: 40,
+                  child: IconButton(
+                    tooltip: 'Remove medicine',
+                    icon: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Color(0xFF6B7280),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _medicineCart.removeAt(index);
+                      });
+                    },
                   ),
                 ),
               ],

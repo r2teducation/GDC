@@ -12,6 +12,8 @@ class PharmacyWidget extends StatefulWidget {
 }
 
 class _PharmacyWidgetState extends State<PharmacyWidget> {
+  Map<String, int> _medicineStockMap = {};
+
   final _db = FirebaseFirestore.instance;
 
   // ------------------------------
@@ -42,6 +44,7 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
   void initState() {
     super.initState();
     _loadPatients();
+    _loadMedicineStock(); // 🔥 VERY IMPORTANT
   }
 
   @override
@@ -49,6 +52,21 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
     _amountCtrl.dispose();
     _detailsCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMedicineStock() async {
+    final snap = await _db.collection('medicines').get();
+
+    final map = <String, int>{};
+
+    for (final d in snap.docs) {
+      final data = d.data();
+      map[d.id] = data['quantityPurchased'] ?? 0;
+    }
+
+    setState(() {
+      _medicineStockMap = map;
+    });
   }
 
   // ======================================================
@@ -143,15 +161,34 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
     if (!_canPay) return;
     setState(() => _saving = true);
 
+    final counterRef = _db.collection('paymentCounter').doc('counter');
+    final counterSnap = await counterRef.get();
+
+    int lastNumber =
+        counterSnap.exists ? (counterSnap.data()?['lastNumber'] ?? 0) : 0;
+
+    lastNumber++;
+
+    final String paymentId = 'PAYID$lastNumber';
+
     try {
-      await _db.collection('payments').add({
+      final payRef = _db.collection('payments').doc();
+
+      await payRef.set({
+        'paymentId': paymentId, // 🔥 ADDED
         'patientId': _selectedPatientId,
         'paymentFor': _paymentFor,
         'paymentMode': _paymentMode,
         'amount': double.parse(_amountCtrl.text),
-        'details': _detailsCtrl.text.trim(),
+        'details':
+            _detailsCtrl.text.trim().isEmpty ? null : _detailsCtrl.text.trim(),
         'paidAt': FieldValue.serverTimestamp(),
       });
+
+      await counterRef.set(
+        {'lastNumber': lastNumber},
+        SetOptions(merge: true),
+      );
 
       if (_treatmentDocId != null) {
         await _db.collection('treatments').doc(_treatmentDocId).update({
@@ -492,7 +529,24 @@ class _PharmacyWidgetState extends State<PharmacyWidget> {
                     onPressed: c.quantity > 1 ? dec : null),
                 Text('${c.quantity}'),
                 IconButton(
-                    icon: const Icon(Icons.add, size: 18), onPressed: inc),
+                  icon: const Icon(Icons.add, size: 18),
+                  onPressed: () {
+                    final available = _medicineStockMap[c.medicineId] ?? 0;
+
+                    if (c.quantity >= available) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Only $available quantity available for ${c.medicineName}',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    inc();
+                  },
+                ),
               ],
             ),
           ),
