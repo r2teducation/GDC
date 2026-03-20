@@ -32,6 +32,8 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
   final _ageCtrl = TextEditingController();
   final _mobileCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  final _doctorNameCtrl = TextEditingController();
+  final _consultationFeeCtrl = TextEditingController(text: '0.00');
 
   // referred by (moved from Visits)
   String? _referredBy; // D / P / O / S / X
@@ -83,6 +85,9 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
       _mobileCtrl.text = data['mobile'];
       _addressCtrl.text = data['address'];
       _referredBy = data['referredBy'];
+      _doctorNameCtrl.text = data['doctorName'] ?? '';
+      _consultationFeeCtrl.text =
+          ((data['consultationFee'] ?? 0.00) as num).toStringAsFixed(2);
       _gender = _toCode(data['gender']);
     });
   }
@@ -95,7 +100,26 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
     _ageCtrl.dispose();
     _mobileCtrl.dispose();
     _addressCtrl.dispose();
+    _doctorNameCtrl.dispose();
+    _consultationFeeCtrl.dispose();
     super.dispose();
+  }
+
+  String? _consultationFeeVal(String? v) {
+    final text = (v ?? '').trim();
+
+    if (text.isEmpty) return 'Consultation fee is required';
+
+    final amount = double.tryParse(text);
+    if (amount == null) return 'Enter a valid amount';
+
+    if (amount < 0) return 'Consultation fee cannot be negative';
+
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(text)) {
+      return 'Use valid amount format like 0.00';
+    }
+
+    return null;
   }
 
   // ---------------------------
@@ -351,7 +375,14 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
                             child: RadioListTile<String>(
                               value: opt['code']!,
                               groupValue: _referredBy,
-                              onChanged: (v) => setState(() => _referredBy = v),
+                              onChanged: (v) {
+                                setState(() {
+                                  _referredBy = v;
+                                  if (_referredBy != 'D') {
+                                    _doctorNameCtrl.clear();
+                                  }
+                                });
+                              },
                               dense: true,
                               contentPadding: EdgeInsets.zero,
                               title: Text(
@@ -366,6 +397,47 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
                             ),
                           );
                         }).toList(),
+                      ),
+                      if (_referredBy == 'D') ...[
+                        const SizedBox(height: 16),
+                        _label("Doctor Name *"),
+                        TextFormField(
+                          controller: _doctorNameCtrl,
+                          textCapitalization: TextCapitalization.words,
+                          validator: (v) => _referredBy == 'D'
+                              ? _nameVal(v, name: "Doctor Name")
+                              : null,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Za-z ]')),
+                            SingleSpaceNameFormatter(),
+                            LengthLimitingTextInputFormatter(50),
+                          ],
+                          decoration: _dec("Enter doctor name"),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      _label("Consultation Fee *"),
+                      TextFormField(
+                        controller: _consultationFeeCtrl,
+                        validator: _consultationFeeVal,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}$')),
+                        ],
+                        onTap: () {
+                          if (_consultationFeeCtrl.text == '0.00') {
+                            _consultationFeeCtrl.clear();
+                          }
+                        },
+                        onEditingComplete: () {
+                          if (_consultationFeeCtrl.text.trim().isEmpty) {
+                            _consultationFeeCtrl.text = '0.00';
+                          }
+                        },
+                        decoration: _dec("Enter consultation fee"),
                       ),
                     ],
                   ),
@@ -426,12 +498,26 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
       return;
     }
 
+    if (_referredBy == 'D' &&
+        _nameVal(_doctorNameCtrl.text, name: "Doctor Name") != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _nameVal(_doctorNameCtrl.text, name: "Doctor Name")!,
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
 
     try {
       final firstName = _firstNameCtrl.text.trim();
       final lastName = _lastNameCtrl.text.trim();
       final mobileRaw = _mobileCtrl.text.replaceAll(' ', '').trim();
+      final consultationFee =
+          double.tryParse(_consultationFeeCtrl.text.trim()) ?? 0.0;
 
       final compositeKey = '${firstName.toLowerCase()}|$mobileRaw';
 
@@ -458,6 +544,8 @@ class _PatientEditWidgetState extends State<PatientEditWidget> {
         'mobile': mobileRaw,
         'address': _addressCtrl.text.trim(),
         'referredBy': _referredBy,
+        'doctorName': _referredBy == 'D' ? _doctorNameCtrl.text.trim() : null,
+        'consultationFee': consultationFee,
         'compositeKey': compositeKey,
         'updatedAt': FieldValue.serverTimestamp(),
       });

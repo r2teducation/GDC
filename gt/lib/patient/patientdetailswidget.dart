@@ -97,14 +97,20 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
     }
   }
 
-  Widget _row(String label, String? value) {
+  Widget _row(String label, String? value, {String? doctorName}) {
     String displayValue = value ?? '--';
 
     // ✅ NORMALIZED LABEL CHECK
     final normalizedLabel = label.toLowerCase().replaceAll(':', '').trim();
 
     if (normalizedLabel == 'referred by') {
-      displayValue = _decodeReferredBy(value);
+      final referredText = _decodeReferredBy(value);
+
+      if (value == 'D' && (doctorName ?? '').trim().isNotEmpty) {
+        displayValue = '$referredText (${doctorName!.trim()})';
+      } else {
+        displayValue = referredText;
+      }
     }
 
     return Padding(
@@ -156,6 +162,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
     final age = (_patientData!['age']?.toString() ?? '');
     final mobile = (_patientData!['mobile'] ?? '');
     final referredBy = (_patientData!['referredBy'] ?? '');
+    final doctorName = (_patientData!['doctorName'] ?? '').toString().trim();
+    final consultationFee = _patientData!['consultationFee'];
     final address = (_patientData!['address'] ?? '');
 
     return Stack(
@@ -170,7 +178,8 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
             _row("Gender :", gender),
             _row("Age :", age),
             _row("Mobile Number :", mobile),
-            _row("Referred By :", referredBy),
+            _row("Referred By :", referredBy, doctorName: doctorName),
+            _row("Consultation Fee :", _formatConsultationFee(consultationFee)),
             _row("Address :", address),
             const SizedBox(height: 8),
           ],
@@ -188,6 +197,14 @@ class _PatientDetailsWidgetState extends State<PatientDetailsWidget> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
     );
+  }
+
+  String _formatConsultationFee(dynamic value) {
+    final amount = (value as num?)?.toDouble() ?? 0.0;
+
+    if (amount == 0.0) return 'Free';
+
+    return amount.toStringAsFixed(2);
   }
 
   @override
