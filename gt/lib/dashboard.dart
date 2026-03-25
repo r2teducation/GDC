@@ -21,6 +21,17 @@ class DashboardWidget extends StatelessWidget {
     21000,
   ];
 
+  // Weekly collection detailed breakup (hardcoded for now)
+  static const List<DayFinanceBreakdown> _weeklyBreakdown = [
+    DayFinanceBreakdown(consultation: 2000, treatment: 21000, medicines: 1000),
+    DayFinanceBreakdown(consultation: 3000, treatment: 26000, medicines: 2000),
+    DayFinanceBreakdown(consultation: 2500, treatment: 20000, medicines: 2500),
+    DayFinanceBreakdown(consultation: 4000, treatment: 30000, medicines: 3000),
+    DayFinanceBreakdown(consultation: 3500, treatment: 22000, medicines: 2500),
+    DayFinanceBreakdown(consultation: 4500, treatment: 35000, medicines: 2500),
+    DayFinanceBreakdown(consultation: 2000, treatment: 18000, medicines: 1000),
+  ];
+
   // Finance dummy monthly data
   static const List<double> _monthlyAmounts = [
     100000,
@@ -100,7 +111,7 @@ class DashboardWidget extends StatelessWidget {
                 _HeaderUnderline(),
                 SizedBox(height: 26),
                 _CollectionLineCard(
-                  title: 'Weekly Collection',
+                  title: 'Weekly Revenue',
                   values: DashboardWidget._weeklyAmounts,
                   labels: DashboardWidget._weekLabels,
                   maxY: 50000,
@@ -108,10 +119,11 @@ class DashboardWidget extends StatelessWidget {
                   xAxisTitle: 'Day',
                   valuePrefix: '₹',
                   isCurrency: true,
+                  breakdownData: DashboardWidget._weeklyBreakdown,
                 ),
                 SizedBox(height: 24),
                 _CollectionLineCard(
-                  title: 'Monthly Collection',
+                  title: 'Monthly Revenue',
                   values: DashboardWidget._monthlyAmounts,
                   labels: DashboardWidget._monthLabels,
                   maxY: 300000,
@@ -166,6 +178,20 @@ class DashboardWidget extends StatelessWidget {
   }
 }
 
+class DayFinanceBreakdown {
+  final int consultation;
+  final int treatment;
+  final int medicines;
+
+  const DayFinanceBreakdown({
+    required this.consultation,
+    required this.treatment,
+    required this.medicines,
+  });
+
+  int get total => consultation + treatment + medicines;
+}
+
 class _HeaderUnderline extends StatelessWidget {
   const _HeaderUnderline();
 
@@ -188,6 +214,7 @@ class _CollectionLineCard extends StatelessWidget {
   final String xAxisTitle;
   final String valuePrefix;
   final bool isCurrency;
+  final List<DayFinanceBreakdown>? breakdownData;
 
   const _CollectionLineCard({
     required this.title,
@@ -198,6 +225,7 @@ class _CollectionLineCard extends StatelessWidget {
     required this.xAxisTitle,
     required this.valuePrefix,
     required this.isCurrency,
+    this.breakdownData,
   });
 
   @override
@@ -339,27 +367,28 @@ class _CollectionLineCard extends StatelessWidget {
                       ),
                       lineTouchData: LineTouchData(
                         enabled: true,
-                        touchTooltipData: LineTouchTooltipData(
-                          tooltipPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          tooltipRoundedRadius: 6,
-                          getTooltipItems: (spots) {
-                            return spots.map((spot) {
-                              final text = isCurrency
-                                  ? '$valuePrefix${_formatAmount(spot.y.toInt())}'
-                                  : spot.y.toInt().toString();
-                              return LineTooltipItem(
-                                text,
-                                const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
+                        handleBuiltInTouches: false,
+                        touchCallback: (event, response) {
+                          if (event is FlTapUpEvent &&
+                              response != null &&
+                              response.lineBarSpots != null &&
+                              response.lineBarSpots!.isNotEmpty) {
+                            final spot = response.lineBarSpots!.first;
+                            final index = spot.x.toInt();
+
+                            if (breakdownData != null &&
+                                index >= 0 &&
+                                index < breakdownData!.length) {
+                              showDialog(
+                                context: context,
+                                builder: (_) => _FinanceBreakdownDialog(
+                                  day: labels[index],
+                                  data: breakdownData![index],
                                 ),
                               );
-                            }).toList();
-                          },
-                        ),
+                            }
+                          }
+                        },
                       ),
                       lineBarsData: [
                         LineChartBarData(
@@ -470,6 +499,102 @@ class _ValueChip extends StatelessWidget {
         ),
         overflow: TextOverflow.ellipsis,
       ),
+    );
+  }
+}
+
+class _FinanceBreakdownDialog extends StatelessWidget {
+  final String day;
+  final DayFinanceBreakdown data;
+
+  const _FinanceBreakdownDialog({
+    required this.day,
+    required this.data,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 300,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$day Collection Details',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            _breakdownRow('Consultation', data.consultation),
+            const SizedBox(height: 10),
+            _breakdownRow('Treatment', data.treatment),
+            const SizedBox(height: 10),
+            _breakdownRow('Medicines', data.medicines),
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            _breakdownRow('Total', data.total, isTotal: true),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFFF2F2F2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _breakdownRow(String label, int amount, {bool isTotal = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isTotal ? 15 : 14,
+            fontWeight: isTotal ? FontWeight.w800 : FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        Text(
+          '₹${_formatAmount(amount)}',
+          style: TextStyle(
+            fontSize: isTotal ? 15 : 14,
+            fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
+            color: Colors.black,
+          ),
+        ),
+      ],
     );
   }
 }
