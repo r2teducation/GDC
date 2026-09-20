@@ -232,8 +232,6 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
     );
   }
 
-  
-
   // ======================================================
   // TABLE HELPERS
   // ======================================================
@@ -326,7 +324,6 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
                       _dialogTextField(
                         controller: nameCtrl,
                         label: 'Medicine Name',
-                        readOnly: isEdit, // 🔥 lock name during edit
                       ),
 
                       const SizedBox(height: 14),
@@ -373,45 +370,112 @@ class _MedicineStockWidgetState extends State<MedicineStockWidget> {
                       const SizedBox(height: 28),
 
                       // ================= FOOTER =================
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (nameCtrl.text.trim().isEmpty ||
-                                qtyCtrl.text.trim().isEmpty ||
-                                expiryDate == null) return;
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (isEdit)
+                            OutlinedButton(
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: ctx,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text("Delete Medicine"),
+                                    content: const Text(
+                                      "Are you sure to Delete this Medicine?",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(_, false),
+                                        child: const Text("Cancel"),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () => Navigator.pop(_, true),
+                                        child: const Text("Delete"),
+                                      ),
+                                    ],
+                                  ),
+                                );
 
-                            final payload = {
-                              'medicineName': nameCtrl.text.trim(),
-                              'quantityPurchased':
-                                  int.parse(qtyCtrl.text.trim()),
-                              'expiryDate': Timestamp.fromDate(expiryDate!),
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            };
+                                if (confirm != true) return;
 
-                            if (isEdit) {
-                              await doc!.reference.update(payload);
-                            } else {
-                              await _db.collection('medicines').add({
-                                ...payload,
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
-                            }
+                                final medicineName = nameCtrl.text.trim();
 
-                            Navigator.pop(ctx);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF111827),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 26, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                await doc!.reference.delete();
+
+                                if (mounted) {
+                                  Navigator.pop(ctx);
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          "$medicineName is Deleted from the stock"),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: const Text("Delete"),
                             ),
+                          if (isEdit) const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (nameCtrl.text.trim().isEmpty ||
+                                  qtyCtrl.text.trim().isEmpty ||
+                                  expiryDate == null) {
+                                return;
+                              }
+
+                              final payload = {
+                                'medicineName': nameCtrl.text.trim(),
+                                'quantityPurchased':
+                                    int.parse(qtyCtrl.text.trim()),
+                                'expiryDate': Timestamp.fromDate(expiryDate!),
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              };
+
+                              if (isEdit) {
+                                await doc!.reference.update(payload);
+
+                                if (mounted) {
+                                  Navigator.pop(ctx);
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text("Medicine Updated Successfully"),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                await _db.collection('medicines').add({
+                                  ...payload,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                });
+
+                                if (mounted) {
+                                  Navigator.pop(ctx);
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text("Medicine Added Successfully"),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF111827),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text("Done"),
                           ),
-                          child: const Text('Done'),
-                        ),
-                      ),
+                        ],
+                      )
                     ],
                   ),
                 ),

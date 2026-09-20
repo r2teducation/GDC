@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 class PatientRegisterWidget extends StatefulWidget {
   const PatientRegisterWidget({super.key});
@@ -13,7 +14,6 @@ class PatientRegisterWidget extends StatefulWidget {
 class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   final _formKey = GlobalKey<FormState>();
 
-  final _patientIdCtrl = TextEditingController(text: 'Auto-generated');
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _ageCtrl = TextEditingController();
@@ -21,6 +21,7 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   final _addressCtrl = TextEditingController();
   final _doctorNameCtrl = TextEditingController();
   final _consultationFeeCtrl = TextEditingController(text: '0.00');
+  final _registrationDateCtrl = TextEditingController();
 
   final List<Map<String, String>> _referredByOptions = const [
     {'code': 'D', 'label': 'Doctor'},
@@ -45,11 +46,20 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
   bool _loading = false;
 
+  DateTime _registrationDate = DateTime.now();
+
   final _db = FirebaseFirestore.instance;
 
   @override
+  void initState() {
+    super.initState();
+
+    _registrationDateCtrl.text =
+        DateFormat("dd-MMM-yyyy hh:mm a").format(_registrationDate);
+  }
+
+  @override
   void dispose() {
-    _patientIdCtrl.dispose();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _ageCtrl.dispose();
@@ -58,6 +68,9 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
     _searchCtrl.dispose();
     _doctorNameCtrl.dispose();
     _consultationFeeCtrl.dispose();
+
+    _registrationDateCtrl.dispose();
+
     super.dispose();
   }
 
@@ -117,6 +130,38 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
   // ---------------------------
   // Firestore helpers
   // ---------------------------
+
+  Future<void> _pickRegistrationDateTime() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _registrationDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate == null) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_registrationDate),
+    );
+
+    if (pickedTime == null) return;
+
+    setState(() {
+      _registrationDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+
+      _registrationDateCtrl.text =
+          DateFormat("dd-MMM-yyyy hh:mm a").format(_registrationDate);
+    });
+  }
+
   Future<String> _generatePatientId() async {
     final counterRef = _db.collection('counters').doc('patientCounter');
 
@@ -157,7 +202,9 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
 
     setState(() {
       // 🔁 Text fields
-      _patientIdCtrl.text = 'Auto-generated';
+      _registrationDate = DateTime.now();
+      _registrationDateCtrl.text =
+          DateFormat("dd-MMM-yyyy hh:mm a").format(_registrationDate);
       _firstNameCtrl.clear();
       _lastNameCtrl.clear();
       _ageCtrl.clear();
@@ -271,6 +318,7 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
         'doctorName': _referredBy == 'D' ? _doctorNameCtrl.text.trim() : null,
         'consultationFee': consultationFee,
         'compositeKey': compositeKey,
+        'registrationDate': Timestamp.fromDate(_registrationDate),
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
@@ -373,11 +421,22 @@ class _PatientRegisterWidgetState extends State<PatientRegisterWidget> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label("Patient ID"),
-                      TextFormField(
-                        controller: _patientIdCtrl,
-                        readOnly: true,
-                        decoration: _dec("Auto-generated"),
+                      _label("Registration Date & Time *"),
+                      InkWell(
+                        onTap: _pickRegistrationDateTime,
+                        borderRadius: BorderRadius.circular(16),
+                        child: AbsorbPointer(
+                          child: TextFormField(
+                            controller: _registrationDateCtrl,
+                            readOnly: true,
+                            showCursor: false,
+                            cursorColor: Colors.transparent,
+                            decoration: _dec("Select registration date & time")
+                                .copyWith(
+                              suffixIcon: const Icon(Icons.calendar_month),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _label("First Name *"),
